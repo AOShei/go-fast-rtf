@@ -792,6 +792,10 @@ func (r *reader) storedPart() {
 	if !r.opts.Parts.Contains(2) || r.opts.Parts != (gofastcore.PartRange{}) {
 		return
 	}
+	if m := r.opts.Limits.MaxParts; m > 0 && m < 2 {
+		r.doc.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, "the part limit was reached; the stored part is left out")
+		return
+	}
 	r.store.MarkHidden()
 	r.doc.Parts = append(r.doc.Parts, *r.store)
 }

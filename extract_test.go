@@ -312,6 +312,10 @@ func TestMetadataAndStored(t *testing.T) {
 	if len(only.Parts) != 1 {
 		t.Errorf("part range 1-1 gave %d parts", len(only.Parts))
 	}
+	one := extract(t, src, &gofastcore.Options{Limits: gofastcore.Limits{MaxParts: 1}})
+	if len(one.Parts) != 1 || len(one.Warnings) == 0 {
+		t.Errorf("MaxParts 1 gave %d parts, warnings %+v", len(one.Parts), one.Warnings)
+	}
 	if _, err := Extract(context.Background(), strings.NewReader(src), int64(len(src)), &gofastcore.Options{Parts: gofastcore.PartRange{First: 2}}); !errors.Is(err, gofastcore.ErrNoPartsSelected) {
 		t.Errorf("part 2: %v", err)
 	}
@@ -472,6 +476,15 @@ func TestTextBudget(t *testing.T) {
 	doc := extract(t, src, &gofastcore.Options{Limits: gofastcore.Limits{MaxTextBytes: 2000}})
 	if n := len(blocks(doc)); n == 0 || n > 20 || !doc.Parts[0].Has(gofastcore.WarnLimitExceeded) {
 		t.Fatalf("%d blocks, warnings %+v", n, doc.Parts[0].Warnings)
+	}
+}
+
+func TestDecodeBudget(t *testing.T) {
+	src := wrap(`\pard x\par{\pict\pngblip ` + strings.Repeat("ab", 5000) + `}`)
+	doc := extract(t, src, &gofastcore.Options{Images: gofastcore.ImagesData, Limits: gofastcore.Limits{MaxDecodedBytes: 1000}})
+	bs := blocks(doc)
+	if len(bs) != 2 || bs[1].Image == nil || bs[1].Image.Data != nil || !doc.Parts[0].Has(gofastcore.WarnLimitExceeded) {
+		t.Fatalf("got %s", dump(doc))
 	}
 }
 

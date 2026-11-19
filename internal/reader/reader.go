@@ -186,8 +186,8 @@ type reader struct {
 	colors   []rgb
 	color    rgb
 	colorAny bool
-	styles   map[int32]*style // paragraph styles (and section and table styles)
-	cstyles  map[int32]*style // character styles
+	styles   map[int32]*style  // paragraph styles (and section and table styles)
+	cstyles  map[int32]*style  // character styles
 	lists    map[int32][]int32 // list id -> \levelnfc of each level
 	lsList   map[int32]int32   // \ls -> list id
 	revs     []string

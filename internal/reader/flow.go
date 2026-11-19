@@ -54,6 +54,15 @@ type flow struct {
 	tables []*table
 	defs   []rowDef
 
+	// Thematic breaks: an empty paragraph with a bottom border alone,
+	// outside a box of paragraphs with the same borders, is one. It waits
+	// for the next paragraph to know.
+	breakPending bool
+	breakBdr     uint8
+	prevBdr      uint8 // borders of the paragraph before
+	prevValid    bool  // there was one, outside a table
+	pageBreak    bool  // the paragraph being read holds a page or section break
+
 	collected []gofastcore.Block // footnotes and comments
 	autoMark  bool               // a footnote with an automatic number
 	endnote   bool
@@ -173,6 +182,21 @@ func (f *flow) endParaAt(p para, level int) {
 	hasMarker := f.marker != nil
 	if hasMarker {
 		marker = cleanMarker(f.marker.String())
+	}
+	// A break waiting for this paragraph is one unless this paragraph has
+	// the same borders, which makes the two a box.
+	if f.breakPending {
+		f.breakPending = false
+		if level > 0 || p.bdr != f.breakBdr {
+			f.emit(gofastcore.Block{Kind: gofastcore.KindThematicBreak, Origin: gofastcore.OriginInferred})
+		}
+	}
+	candidate := f.kind == flowBody && level == 0 && text == "" && !hasMarker && len(f.after) == 0 &&
+		p.ls == 0 && !f.pageBreak && p.bdr == borderBottom && !(f.prevValid && f.prevBdr == p.bdr)
+	f.prevBdr, f.prevValid, f.pageBreak = p.bdr, level == 0, false
+	if candidate {
+		f.finishTables()
+		f.breakPending, f.breakBdr = true, p.bdr
 	}
 	if level > 0 {
 		f.ensureTables(level)
@@ -332,6 +356,10 @@ func shiftSpans(spans []gofastcore.Span, by int) []gofastcore.Span {
 func (f *flow) end() {
 	if len(f.text) > 0 || f.marker != nil || len(f.del) > 0 {
 		f.endPara(f.lastP)
+	}
+	if f.breakPending {
+		f.breakPending = false
+		f.emit(gofastcore.Block{Kind: gofastcore.KindThematicBreak, Origin: gofastcore.OriginInferred})
 	}
 	f.finishTables()
 	for _, b := range f.after {

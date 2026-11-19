@@ -19,8 +19,7 @@ import (
 // Warning codes of this library.
 const (
 	// WarnUnreadContent: the file holds content of a kind this version
-	// does not read (an equation, a form field's settings); the message
-	// names it.
+	// does not read (an equation); the message names it.
 	WarnUnreadContent = "rtf.unread_content"
 	// WarnControlCharsRemoved: control characters with no meaning as text
 	// were removed.
@@ -176,6 +175,7 @@ type reader struct {
 	page     *rgb // the page's background colour, if the file sets one
 	lang     int32
 
+	form        *formField
 	curList     *listDef
 	curOverride *[3]int32 // list id, \ls, list id set
 	bgDepth     int

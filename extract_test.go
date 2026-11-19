@@ -491,6 +491,22 @@ func TestTextBox(t *testing.T) {
 	}
 }
 
+func TestDropDown(t *testing.T) {
+	src := wrap(`\pard Pick: {\field{\*\fldinst {FORMDROPDOWN }{\*\datafield 0123}{\*\formfield{\fftype2\ffres0\ffhaslistbox{\*\ffname Colour}{\*\ffl Red}{\*\ffl Green}}}}{\fldrslt Red}}\par`)
+	doc := extract(t, src, nil)
+	bs := blocks(doc)
+	if len(bs) != 3 || bs[0].Text != "Pick: Red" {
+		t.Fatalf("got %s", dump(doc))
+	}
+	c := bs[1]
+	if c.Kind != gofastcore.KindNote || c.Attrs[gofastcore.AttrNoteType] != gofastcore.NoteChoices || c.Text != "Red\nGreen" || c.Attrs[gofastcore.AttrField] != "Colour" || c.Hidden != 0 {
+		t.Errorf("choices %+v", c)
+	}
+	if bs[2].Text != "FORMDROPDOWN" {
+		t.Errorf("field %+v", bs[2])
+	}
+}
+
 func TestInvisibleChars(t *testing.T) {
 	doc := extract(t, wrap(`\pard a\u8203?\u8203?\u8203?\u8203?b\par`), nil)
 	if b := blocks(doc)[0]; b.Hidden&gofastcore.HiddenChars == 0 {

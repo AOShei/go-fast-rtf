@@ -20,13 +20,13 @@ var knownStar = map[string]bool{
 	"nesttableprops": true, "pn": true, "ud": true, "template": true,
 	"company": true, "manager": true, "category": true, "hlinkbase": true,
 	"footnote": true, "header": true, "footer": true,
+	"formfield": true, "ffname": true, "ffl": true,
 }
 
 // unreadStar names the skipped destinations that hold content a reader
 // sees, so that a warning can say what was not read.
 var unreadStar = map[string]string{
 	"mmath": "equation", "moMathPara": "equation", "moMath": "equation",
-	"formfield": "form field settings",
 }
 
 var infoItems = map[string]bool{
@@ -444,6 +444,49 @@ func (r *reader) word(t token.Token) {
 		}
 	case "upr":
 		g.uprSkip = true
+	case "formfield":
+		r.openFormField(g)
+	case "ffname", "ffl":
+		if ff := r.form; ff != nil {
+			b := newBuf(4096)
+			g.buf, g.dest = b, dBody
+			g.onClose = func() {
+				s := cleanText(b.String())
+				if name == "ffname" {
+					ff.name = s
+				} else if s != "" && len(ff.choices) < 1024 {
+					ff.choices = append(ff.choices, s)
+				}
+			}
+		} else {
+			r.skipGroup()
+		}
+	}
+}
+
+// formField is the settings of a form field being read.
+type formField struct {
+	name    string
+	choices []string
+}
+
+// openFormField reads \*\formfield: the name of a drop-down form field and
+// the values it offers, which become a note of type choices.
+func (r *reader) openFormField(g *group) {
+	ff := &formField{}
+	r.form = ff
+	g.dest, g.buf = dWords, nil
+	g.onClose = func() {
+		r.form = nil
+		if len(ff.choices) == 0 {
+			return
+		}
+		b := gofastcore.Block{Kind: gofastcore.KindNote, Text: strings.Join(ff.choices, "\n"),
+			Attrs: map[string]string{gofastcore.AttrNoteType: gofastcore.NoteChoices}}
+		if ff.name != "" {
+			b.Attrs[gofastcore.AttrField] = ff.name
+		}
+		r.deliver(r.top().flow, b)
 	}
 }
 

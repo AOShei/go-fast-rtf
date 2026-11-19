@@ -46,8 +46,7 @@ const (
 //	structure.heading_level_clamped
 const (
 	// WarnUnreadContent: the file holds content of a kind this version
-	// does not read (an equation, the settings of a form field); the
-	// message names it.
+	// does not read (an equation); the message names it.
 	WarnUnreadContent = reader.WarnUnreadContent
 	// WarnControlCharsRemoved: control characters with no meaning as text
 	// were removed from extracted strings.

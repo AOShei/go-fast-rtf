@@ -92,6 +92,13 @@ and always run; `Options.DeepHidden` changes nothing.
 | `low_contrast` | the text colour (`\cf`) against what is behind it, judged with `gofastcore.LowContrast`: the first set of `\highlight`, `\chcbpat`, `\cb`, the paragraph's `\cbpat`, the page colour (the `fillColor` of `\*\background`), else white. Text in the automatic colour is never flagged |
 | `invisible_chars` | core's scan, on every block |
 
+These properties count whether they are written on the run or set by a
+style: a paragraph style (`\sN`) or a character style (`\csN`) of the
+`\stylesheet`, followed through `\sbasedon`, that sets `\v`, `\webhidden`,
+`\cf`, `\cb`, `\highlight`, `\chcbpat` or `\fs`. The style's properties are
+applied where `\s` or `\cs` stands; properties written after it win, and
+`\plain` resets them.
+
 In a table, a cell that holds hidden text is a `Table.Hidden` region with its
 reasons. A comment's or footnote's hidden passages are spans like a
 paragraph's.
@@ -101,8 +108,7 @@ Tracked deletions are not flagged hidden: as in go-fast-ooxml they are
 accepted.
 
 What `invisible` and the others cannot see: shapes positioned off the page,
-text covered by pictures, text inside pictures, colours set by a style but
-not repeated on the run (Word repeats them), and table cell shading.
+text covered by pictures, text inside pictures, and table cell shading.
 
 ### What the file stores and never shows
 
@@ -155,8 +161,8 @@ size.
   `\pntext` says, which Word always writes.
 - Equations (`\mmath`), the default text and help text of form fields,
   drawing objects other than text boxes and pictures, `\pmmetafile` data.
-- Character formatting from styles: only properties written on the runs
-  count.
+- Bold, italic and other inline styles set only by a style are not given as
+  spans (the hidden-text properties of styles are read; see above).
 
 ## The command
 

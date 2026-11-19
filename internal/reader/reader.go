@@ -154,7 +154,13 @@ type style struct {
 	name    *strbuf
 	outline int32
 	basedOn int32
-	char    bool
+	char    bool // a character, section or table style, not a paragraph style
+	cs      bool // a character style
+	// The character properties the style sets: those in set.
+	set       uint8
+	hidden    bool
+	webHidden bool
+	c         chr
 }
 
 type reader struct {
@@ -180,7 +186,8 @@ type reader struct {
 	colors   []rgb
 	color    rgb
 	colorAny bool
-	styles   map[int32]*style
+	styles   map[int32]*style // paragraph styles (and section and table styles)
+	cstyles  map[int32]*style // character styles
 	lists    map[int32][]int32 // list id -> \levelnfc of each level
 	lsList   map[int32]int32   // \ls -> list id
 	revs     []string
@@ -245,6 +252,7 @@ func Read(ctx context.Context, src io.Reader, cfg Config) (*gofastcore.Document,
 		ansicpg:   1252,
 		fonts:     map[int32]font{},
 		styles:    map[int32]*style{},
+		cstyles:   map[int32]*style{},
 		lists:     map[int32][]int32{},
 		lsList:    map[int32]int32{},
 		unmapped:  map[int]int{},
@@ -381,7 +389,11 @@ func (r *reader) open() {
 		st := &style{outline: -1, basedOn: -1, name: newBuf(512)}
 		g.style, g.buf = st, st.name
 		g.onClose = func() {
-			if len(r.styles) < 1<<16 {
+			if st.cs {
+				if len(r.cstyles) < 1<<16 {
+					r.cstyles[st.num] = st
+				}
+			} else if len(r.styles) < 1<<16 {
 				if _, dup := r.styles[st.num]; !dup || !st.char {
 					r.styles[st.num] = st
 				}

@@ -86,7 +86,7 @@ func (r *reader) word(t token.Token) {
 		}
 		return
 	case dStyleSheet:
-		if r.styleWord(g, name, v) {
+		if r.styleWord(g, name, v, has) {
 			return
 		}
 	case dListTable, dListOverrideTable:
@@ -210,6 +210,9 @@ func (r *reader) word(t token.Token) {
 		}
 	case "s":
 		g.p.style = v
+		r.applyStyle(&g.c, v, false)
+	case "cs":
+		r.applyStyle(&g.c, v, true)
 	case "outlinelevel":
 		g.p.outline = v
 	case "ls":
@@ -589,22 +592,109 @@ func (r *reader) endColor() {
 
 // styleWord reads a control word of a style definition. It reports
 // whether the word was taken.
-func (r *reader) styleWord(g *group, name string, v int32) bool {
+func (r *reader) styleWord(g *group, name string, v int32, has bool) bool {
 	st := g.style
 	if st == nil {
 		return true
 	}
+	on := v != 0 || !has
 	switch name {
 	case "s":
 		st.num = v
 	case "cs", "ds", "ts":
-		st.num, st.char = v, true
+		st.num, st.char, st.cs = v, true, name == "cs"
 	case "outlinelevel":
 		st.outline = v
 	case "sbasedon":
 		st.basedOn = v
+	case "v":
+		st.set |= propHidden
+		st.hidden = on
+	case "webhidden":
+		st.set |= propWebHidden
+		st.webHidden = on
+	case "cf":
+		st.set |= propCf
+		st.c.cf = v
+	case "cb":
+		st.set |= propCb
+		st.c.cb = v
+	case "highlight":
+		st.set |= propHl
+		st.c.hl = v
+	case "chcbpat":
+		st.set |= propShd
+		st.c.shd = v
+	case "fs":
+		st.set |= propFs
+		st.c.fs = 24
+		if has {
+			st.c.fs = v
+		}
 	}
 	return true
+}
+
+// Character properties a style sets.
+const (
+	propHidden uint8 = 1 << iota
+	propWebHidden
+	propCf
+	propCb
+	propHl
+	propShd
+	propFs
+)
+
+// applyStyle gives c the character properties that style num sets, and
+// those of the styles it is based on, the base first. A paragraph style
+// (\sN) and a character style (\csN) are in two tables.
+func (r *reader) applyStyle(c *chr, num int32, char bool) {
+	table := r.styles
+	if char {
+		table = r.cstyles
+	}
+	var chain [16]*style
+	n := 0
+	for s := num; n < len(chain); n++ {
+		st, ok := table[s]
+		if !ok || st.char != char {
+			break
+		}
+		chain[n] = st
+		if st.basedOn < 0 || st.basedOn == s {
+			n++
+			break
+		}
+		s = st.basedOn
+	}
+	for i := n - 1; i >= 0; i-- {
+		st := chain[i]
+		if st == nil {
+			continue
+		}
+		if st.set&propHidden != 0 {
+			c.hidden = st.hidden
+		}
+		if st.set&propWebHidden != 0 {
+			c.webHidden = st.webHidden
+		}
+		if st.set&propCf != 0 {
+			c.cf = st.c.cf
+		}
+		if st.set&propCb != 0 {
+			c.cb = st.c.cb
+		}
+		if st.set&propHl != 0 {
+			c.hl = st.c.hl
+		}
+		if st.set&propShd != 0 {
+			c.shd = st.c.shd
+		}
+		if st.set&propFs != 0 {
+			c.fs = st.c.fs
+		}
+	}
 }
 
 func (r *reader) listWord(g *group, name string, v int32) {

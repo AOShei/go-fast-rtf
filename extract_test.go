@@ -209,6 +209,41 @@ func TestHidden(t *testing.T) {
 	}
 }
 
+func TestHiddenFromStyles(t *testing.T) {
+	src := `{\rtf1\ansi{\fonttbl{\f0 Times;}}{\colortbl;\red0\green0\blue0;\red255\green255\blue255;}` +
+		`{\stylesheet{\s0\fs24 Normal;}{\s5\v Hidden Para;}{\s6\sbasedon5 Child Of Hidden;}{\s7\cf2 White Para;}{\s8\fs2 Tiny Para;}` +
+		`{\*\cs1\v Hidden Char;}{\*\cs2\cf2 White Char;}{\*\cs3\sbasedon2 Child White Char;}{\*\cs4\v0 Shown Char;}}` +
+		`\pard\plain\s5 Para hidden by style\par` +
+		`\pard\plain\s6 Para hidden by base style\par` +
+		`\pard\plain\s7 White by style\par` +
+		`\pard\plain\s8 Tiny by style\par` +
+		`\pard\plain\s0 Visible {\cs1 char hidden} and {\cs3 white char} end\par` +
+		`\pard\plain\s5 {\cs4 shown by char style}\par` +
+		`\pard\plain\s5\v0 shown by direct formatting\par` +
+		`\pard\plain\s1 Not char style 1\par}`
+	doc := extract(t, src, nil)
+	bs := blocks(doc)
+	want := []gofastcore.Hidden{
+		gofastcore.HiddenInvisible, gofastcore.HiddenInvisible, gofastcore.HiddenLowContrast, gofastcore.HiddenTiny,
+		gofastcore.HiddenInvisible | gofastcore.HiddenLowContrast, 0, 0, 0,
+	}
+	if len(bs) != len(want) {
+		t.Fatalf("got %s", dump(doc))
+	}
+	for i, w := range want {
+		if bs[i].Hidden != w {
+			t.Errorf("block %d %q: hidden %s, want %s", i, bs[i].Text, bs[i].Hidden, w)
+		}
+	}
+	var spans []string
+	for _, s := range bs[4].Spans {
+		spans = append(spans, bs[4].Text[s.Start:s.End]+"="+s.Hidden.String())
+	}
+	if strings.Join(spans, ",") != "char hidden=invisible,white char=low_contrast" {
+		t.Errorf("spans %v", spans)
+	}
+}
+
 func TestDeletion(t *testing.T) {
 	src := wrap(`{\*\revtbl{Unknown;}{Alice;}}\pard Keep {\deleted\revauthdel1\revdttmdel130229150removed }this.\par`)
 	doc := extract(t, src, nil)

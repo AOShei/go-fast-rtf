@@ -165,7 +165,7 @@ func (l *Lexer) control() Token {
 					// A damaged escape: what follows is read as text.
 					l.unread()
 					if i == 0 {
-						return l.Next()
+						return Token{Kind: Symbol, Sym: '\''}
 					}
 					return Token{Kind: Hex, Sym: v}
 				}
@@ -223,6 +223,9 @@ func (l *Lexer) control() Token {
 			if !ok || !isDigit(c) {
 				break
 			}
+		}
+		if n > maxDigits {
+			v = 1 << 40 // clamped below
 		}
 		if neg {
 			v = -v

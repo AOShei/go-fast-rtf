@@ -49,6 +49,7 @@ func (r *reader) word(t token.Token) {
 	r.flushBytes()
 	first := g.first
 	g.first = false
+	r.firstWord = first
 	if first && g.star && !knownStar[name] && !(g.dest == dStyleSheet && (name == "cs" || name == "ts" || name == "ds")) {
 		if what, ok := unreadStar[name]; ok {
 			r.unread[what]++

@@ -157,7 +157,8 @@ type reader struct {
 
 	stack []group
 	skip  int // groups being skipped, when above zero
-	deep  bool
+	// firstWord: the control word being read is the first of its group
+	firstWord bool
 
 	body *flow
 
@@ -405,8 +406,13 @@ func (r *reader) close() {
 	}
 }
 
-// skipGroup drops the group just begun, and everything in it.
+// skipGroup drops the group just begun, and everything in it. A
+// destination word that does not begin its group, or that stands in the
+// document's own group, is ignored instead.
 func (r *reader) skipGroup() {
+	if !r.firstWord || len(r.stack) <= 1 {
+		return
+	}
 	r.stack = r.stack[:len(r.stack)-1]
 	r.skip = 1
 }

@@ -65,10 +65,12 @@ Text is decoded through `\uN` (with the `\ucN` fallback bytes skipped,
 surrogate pairs joined) and `\'hh` through the code page of the current font
 (`\cpgN`, else `\fcharsetN`) or of the document (`\ansicpgN`, `\ansi`,
 `\mac`). Single-byte code pages 874, 1250 to 1258 and Mac Roman (10000) are
-decoded, and UTF-8 (65001). The double-byte code pages 932, 936, 949 and
-950 are recognised but not decoded: each character, lead and trail byte
-together, is one U+FFFD, and `text.unmapped_glyphs` names the code page.
-Other code pages (437, 850, ...) are not decoded either. The ligatures
+decoded, UTF-8 (65001), and the double-byte code pages 932 (Japanese), 936
+(Simplified Chinese), 949 (Korean) and 950 (Traditional Chinese), in `\'hh`
+escapes and in raw 8-bit bytes alike; a lead byte and its trail byte may
+come in two escapes. A pair the table does not map, and a lead byte with
+no trail byte, are one U+FFFD each, and `text.unmapped_glyphs` names the
+code page. Other code pages (437, 850, Johab, ...) are not decoded. The ligatures
 U+FB00 to U+FB06 (Mac Roman has two) are written as their letters.
 
 Destinations marked `\*` that this library does not know are skipped, as the
@@ -147,8 +149,7 @@ size.
 
 ## What is not read
 
-- Double-byte code pages (932, 936, 949, 950) and code pages other than the
-  single-byte ones listed above.
+- Code pages other than those listed above (437, 850, Johab 1361, ...).
 - List numbers are not computed: the marker is what `\listtext` or
   `\pntext` says, which Word always writes.
 - Equations (`\mmath`), the default text and help text of form fields,

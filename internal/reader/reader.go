@@ -726,7 +726,7 @@ func (r *reader) unmappedWarnings(part *gofastcore.Part) {
 		case cp == codepage.Symbol:
 			msg = fmt.Sprintf("%d characters in Symbol fonts are U+FFFD", n)
 		case codepage.DoubleByte(cp):
-			msg = fmt.Sprintf("code page %d was not decoded: %d characters are U+FFFD", cp, n)
+			msg = fmt.Sprintf("%d characters have no mapping in code page %d, or are a lead byte with no trail byte, and are U+FFFD", n, cp)
 		case !codepage.Known(cp):
 			msg = fmt.Sprintf("code page %d was not decoded: %d bytes are U+FFFD", cp, n)
 		default:

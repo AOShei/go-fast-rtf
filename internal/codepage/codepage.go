@@ -3,11 +3,10 @@
 // and \fcharsetN.
 //
 // The single-byte Windows code pages 874 and 1250 to 1258 and the Mac Roman
-// page (10000) are decoded from tables. The double-byte code pages 932, 936,
-// 949 and 950 are recognised but not decoded: each character, lead and
-// trail byte together, becomes U+FFFD, so that the reader can say which
-// code page was not decoded. Any other code page is not decoded either,
-// byte by byte above 0x7F.
+// page (10000) are decoded from tables, and so are the double-byte code
+// pages 932, 936, 949 and 950, a character at a time, lead and trail byte
+// together. A character a table does not map becomes U+FFFD. Any other
+// code page is not decoded, byte by byte above 0x7F.
 package codepage
 
 // Symbol is the pseudo code page of a font with \fcharset2 (Symbol). Its
@@ -16,10 +15,10 @@ package codepage
 const Symbol = -2
 
 // Known reports whether bytes in code page cp are decoded.
-func Known(cp int) bool { return table(cp) != nil || cp == 65001 }
+func Known(cp int) bool { return table(cp) != nil || cp == 65001 || DoubleByte(cp) }
 
-// DoubleByte reports whether cp is one of the double-byte code pages whose
-// lead bytes this package recognises.
+// DoubleByte reports whether cp is one of the double-byte code pages this
+// package decodes.
 func DoubleByte(cp int) bool {
 	switch cp {
 	case 932, 936, 949, 950:
@@ -116,10 +115,11 @@ func ForCharset(charset int) int {
 // Decoder decodes bytes one at a time, holding the lead byte of a
 // double-byte character until its trail byte comes.
 type Decoder struct {
-	lead    bool
-	leadCP  int
-	utf8    []byte
-	pending int // bytes of a UTF-8 sequence still expected
+	lead     bool
+	leadCP   int
+	leadByte byte
+	utf8     []byte
+	pending  int // bytes of a UTF-8 sequence still expected
 }
 
 // Unmapped is returned for a byte or character that is not decoded.
@@ -131,10 +131,19 @@ const Unmapped = 0xFFFD
 func (d *Decoder) Byte(cp int, b byte, emit func(r rune, ok bool)) {
 	if d.lead {
 		d.lead = false
-		if d.leadCP == cp {
+		if d.leadCP == cp && b >= trailFirst {
+			// A lead and a trail byte are one character, mapped or not.
+			if t := dbcsTable(cp); t != nil {
+				if r := t.pair(d.leadByte, b); r != 0 {
+					emit(r, true)
+					return
+				}
+			}
 			emit(Unmapped, false)
 			return
 		}
+		// A lead byte not followed by a trail byte is not a character;
+		// what follows it is read afresh.
 		emit(Unmapped, false)
 	}
 	if cp == 65001 {
@@ -164,8 +173,14 @@ func (d *Decoder) Byte(cp int, b byte, emit func(r rune, ok bool)) {
 		return
 	}
 	if isLead(cp, b) {
-		d.lead, d.leadCP = true, cp
+		d.lead, d.leadCP, d.leadByte = true, cp, b
 		return
+	}
+	if t := dbcsTable(cp); t != nil {
+		if r := t.single[b-0x80]; r != 0 {
+			emit(rune(r), true)
+			return
+		}
 	}
 	emit(Unmapped, false)
 }

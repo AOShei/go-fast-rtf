@@ -235,17 +235,70 @@ func TestUnicodeAndCodePages(t *testing.T) {
 	if want := "\u041f\u0440\u0438\u0432\u0435\u0442 \u0105\u0107 \u20ac\U0001F600 \u4e2d z"; bs[0].Text != want {
 		t.Errorf("text %q, want %q", bs[0].Text, want)
 	}
-	if bs[1].Text != "\ufffd" {
+	if bs[1].Text != "\u3042" {
 		t.Errorf("double-byte text %q", bs[1].Text)
 	}
-	var cp932, undefined bool
+	var undefined bool
 	for _, w := range doc.Parts[0].Warnings {
 		if w.Code == gofastcore.WarnTextUnmappedGlyphs {
-			cp932 = cp932 || strings.Contains(w.Message, "code page 932 was not decoded: 1 characters")
 			undefined = undefined || strings.Contains(w.Message, "code page 1251")
 		}
 	}
-	if !cp932 || !undefined {
+	if !undefined {
+		t.Errorf("warnings %+v", doc.Parts[0].Warnings)
+	}
+}
+
+func TestDoubleByteDocuments(t *testing.T) {
+	cases := []struct {
+		name, src, want string
+	}{
+		// Japanese through the document's code page, in hex escapes and
+		// in raw 8-bit bytes, with a trail byte in the ASCII range.
+		{"932", `{\rtf1\ansi\ansicpg932\deff0{\fonttbl{\f0\fnil\fcharset128 MS Mincho;}}\pard \'93\'fa\'96\'7b ` + "\x82\xa0\x83\x41" + ` ok\par}`,
+			"\u65e5\u672c \u3042\u30a2 ok"},
+		// Simplified Chinese through a font's \fcharset134 in a Western
+		// document.
+		{"936", `{\rtf1\ansi\ansicpg1252{\fonttbl{\f0 Arial;}{\f1\fcharset134 SimSun;}}\pard A {\f1 \'d6\'d0\'ce\'c4} B\par}`,
+			"A \u4e2d\u6587 B"},
+		// Korean through \cpg, which wins over \fcharset.
+		{"949", `{\rtf1\ansi{\fonttbl{\f0\fcharset0\cpg949 Batang;}}\pard\f0 \'c7\'d1\'b1\'b9\par}`,
+			"\ud55c\uad6d"},
+		// Traditional Chinese, the lead byte and the trail byte split
+		// over two escapes with a line end between them.
+		{"950", "{\\rtf1\\ansi\\ansicpg950{\\fonttbl{\\f0\\fcharset136 MingLiU;}}\\pard \\'a4\r\n\\'a4\\'a4\\'e5\\par}",
+			"\u4e2d\u6587"},
+		// The \u fallback of a CJK document: \uc2 skips both bytes of the
+		// double-byte fallback, which is not decoded a second time.
+		{"fallback", `{\rtf1\ansi\ansicpg936\uc2{\fonttbl{\f0\fcharset134 SimSun;}}\pard\f0 \u20013\'d6\'d0\u25991\'ce\'c4!\par}`,
+			"\u4e2d\u6587!"},
+		// The fallback of \uc1 is one byte, here '?'.
+		{"fallback1", `{\rtf1\ansi\ansicpg936{\fonttbl{\f0\fcharset134 SimSun;}}\pard\f0\uc1 \u20013?x\par}`,
+			"\u4e2dx"},
+	}
+	for _, c := range cases {
+		doc := extract(t, c.src, nil)
+		bs := blocks(doc)
+		if len(bs) != 1 || bs[0].Text != c.want {
+			t.Errorf("%s: got %s", c.name, dump(doc))
+			continue
+		}
+		if doc.Parts[0].Has(gofastcore.WarnTextUnmappedGlyphs) {
+			t.Errorf("%s: warnings %+v", c.name, doc.Parts[0].Warnings)
+		}
+	}
+
+	// A lead byte at the end of the input, and an unmapped pair, are
+	// U+FFFD with a warning naming the code page.
+	doc := extract(t, `{\rtf1\ansi\ansicpg950{\fonttbl{\f0\fcharset136 MingLiU;}}\pard \'fe\'fe a\'a4`, nil)
+	if got := blocks(doc)[0].Text; got != "\ufffd a\ufffd" {
+		t.Errorf("unmapped: %q", got)
+	}
+	found := false
+	for _, w := range doc.Parts[0].Warnings {
+		found = found || w.Code == gofastcore.WarnTextUnmappedGlyphs && strings.Contains(w.Message, "2 characters have no mapping in code page 950")
+	}
+	if !found {
 		t.Errorf("warnings %+v", doc.Parts[0].Warnings)
 	}
 }

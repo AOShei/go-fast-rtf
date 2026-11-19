@@ -1,0 +1,32 @@
+go-fast-rtf
+Copyright (c) 2025 Andrew O'Shei. MIT License (see LICENSE).
+
+Third-party data
+================
+
+Code page tables (internal/codepage/tables.go)
+----------------------------------------------
+
+The tables of the single-byte code pages are the content of the mapping
+files published by the Unicode Consortium, written out as Go arrays:
+
+  Windows 874, 1250, 1251, 1252, 1253, 1254, 1255, 1256, 1257, 1258:
+    https://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/WINDOWS/CP874.TXT
+    https://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/WINDOWS/CP1250.TXT
+    ... through CP1258.TXT
+  Mac OS Roman (code page 10000):
+    https://www.unicode.org/Public/MAPPINGS/VENDORS/APPLE/ROMAN.TXT
+
+The files are provided by the Unicode Consortium and the vendors named in
+them (Microsoft Corporation, Apple Inc.) under the Unicode terms of use,
+which permit use of the mapping data. Bytes the files leave undefined are
+undefined in the tables (decoded as U+FFFD with a warning).
+
+The tables were transcribed while this library was written, without network
+access to the files; tables_test.go checks the structure of each table and a
+sample of known values. A byte-by-byte comparison with the published files
+is recommended before release (see the README, "What is not read").
+
+No other third-party code or data is included. The double-byte code pages
+(932, 936, 949, 950) are not decoded, because no table generated from
+authoritative content is included.

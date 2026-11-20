@@ -155,14 +155,21 @@ func (t *tally) add(r corpusResult) {
 	if r.doc == nil {
 		return
 	}
+	var inFile gofastcore.Hidden
 	for _, b := range r.doc.AllBlocks() {
 		if b.Hidden == 0 {
 			continue
 		}
+		inFile |= b.Hidden
 		for bit := gofastcore.Hidden(1); bit != 0; bit <<= 1 {
 			if b.Hidden&bit != 0 {
 				t.reasons[bit.String()]++
 			}
+		}
+	}
+	for bit := gofastcore.Hidden(1); bit != 0; bit <<= 1 {
+		if inFile&bit != 0 {
+			t.reasons["files "+bit.String()]++
 		}
 	}
 	for _, w := range r.doc.AllWarnings() {

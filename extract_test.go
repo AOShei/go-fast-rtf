@@ -547,6 +547,31 @@ func TestBorderedEmptyParagraph(t *testing.T) {
 	}
 }
 
+// Word's horizontal line (fHorizRule) declares a thematic break: inline,
+// in a picture's \picprop, or on a floating shape; not when it is 0.
+func TestHorizontalRule(t *testing.T) {
+	inline := `{\*\shppict{\pict{\*\picprop\shplid1025{\sp{\sn shapeType}{\sv 1}}{\sp{\sn fHorizRule}{\sv 1}}{\sp{\sn fStandardHR}{\sv 1}}}\picscalex100\wmetafile8\picw100\pich100 0100}}{\nonshppict{\pict\wmetafile8\picw100\pich100 0100}}`
+	shape := `{\shp{\*\shpinst\shpleft0\shptop0\shpright100\shpbottom10{\sp{\sn shapeType}{\sv 1}}{\sp{\sn fHorizRule}{\sv 1}}{\sp{\sn pib}{\sv {\pict\pngblip\picw10\pich1 89504e47}}}}}`
+	off := strings.Replace(shape, `{\sv 1}}{\sp{\sn pib}`, `{\sv 0}}{\sp{\sn pib}`, 1)
+	for name, c := range map[string]struct{ src, want string }{
+		"inline":    {inline, "paragraph:One thematic_break: paragraph:Two"},
+		"shape":     {shape, "paragraph:One thematic_break: paragraph:Two"},
+		"shape off": {off, "paragraph:One image: paragraph:Two"},
+	} {
+		doc := extract(t, wrap(`\pard One\par\pard `+c.src+`\par\pard Two\par`), nil)
+		var got []string
+		for _, b := range blocks(doc) {
+			got = append(got, b.Kind.String()+":"+b.Text)
+			if b.Kind == gofastcore.KindThematicBreak && b.Origin != gofastcore.OriginNative {
+				t.Errorf("%s: break origin %v", name, b.Origin)
+			}
+		}
+		if s := strings.Join(got, " "); s != c.want {
+			t.Errorf("%s: got %q, want %q", name, s, c.want)
+		}
+	}
+}
+
 func TestDropDown(t *testing.T) {
 	src := wrap(`\pard Pick: {\field{\*\fldinst {FORMDROPDOWN }{\*\datafield 0123}{\*\formfield{\fftype2\ffres0\ffhaslistbox{\*\ffname Colour}{\*\ffl Red}{\*\ffl Green}}}}{\fldrslt Red}}\par`)
 	doc := extract(t, src, nil)

@@ -6,6 +6,10 @@
   empty paragraph whose only border is a styled bottom border. A border is
   not a declared break; such a paragraph now gives no block, as any empty
   paragraph. Paragraph border words are no longer tracked.
+- **Added:** Word's horizontal line, the shape property `fHorizRule` (on
+  a shape, or in an inline picture's `\picprop`), gives a `thematic_break`
+  with `Origin` `native` in place of the line's picture, as go-fast-ooxml
+  reads Word's `o:hr`.
 
 ## Unreleased: field codes as stored data
 

@@ -55,8 +55,9 @@ checked byte by byte against Python's codecs by the orchestrator.
    - Thematic breaks (core df335f0) were inferred from an empty paragraph
      with a styled bottom border; removed on branch `no-inferred-break`
      (no inferred breaks: a border is not a declared break). Paragraph
-     borders are no longer read. A declared rule (a Word horizontal-line
-     shape, `fHorizRule`) is not yet read.
+     borders are no longer read. The declared rule, Word's horizontal-line
+     shape (`fHorizRule`, on a shape or in a picture's `\picprop`), gives a
+     native `thematic_break` (`TestHorizontalRule`).
    - Character properties set by paragraph and character styles, through
      `\sbasedon` (only `\v` is read now; see phase 9).
 

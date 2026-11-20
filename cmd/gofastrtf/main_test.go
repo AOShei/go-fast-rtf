@@ -30,13 +30,23 @@ func TestRun(t *testing.T) {
 	if doc.Metadata.Title != "T" || len(doc.Parts) != 1 || doc.Source.Name != "a.rtf" {
 		t.Fatalf("doc %+v", doc)
 	}
-	if !strings.Contains(errOut.String(), "text.hidden") {
+	if errOut.Len() != 0 {
 		t.Errorf("stderr %q", errOut.String())
+	}
+	if b := doc.Parts[0].Blocks[1]; b.Display != gofastcore.DisplayHidden {
+		t.Errorf("block %+v", b)
 	}
 
 	out.Reset()
 	errOut.Reset()
-	if code := run(context.Background(), []string{"-format", "markdown", "-exclude-hidden", dir}, &out, &errOut); code != 0 {
+	if code := run(context.Background(), []string{"-format", "markdown", dir}, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	if got := out.String(); !strings.Contains(got, "Body hidden") {
+		t.Errorf("markdown %q", got)
+	}
+	out.Reset()
+	if code := run(context.Background(), []string{"-format", "markdown", "-exclude-display", dir}, &out, &errOut); code != 0 {
 		t.Fatalf("exit %d: %s", code, errOut.String())
 	}
 	if got := out.String(); !strings.Contains(got, "# Head") || strings.Contains(got, "hidden") {

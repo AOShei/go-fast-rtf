@@ -77,15 +77,7 @@ func (r *reader) word(t token.Token) {
 		r.fontWord(name, v)
 		return
 	case dColorTbl:
-		switch name {
-		case "red":
-			r.color.r, r.colorAny = uint8(min(max(v, 0), 255)), true
-		case "green":
-			r.color.g, r.colorAny = uint8(min(max(v, 0), 255)), true
-		case "blue":
-			r.color.b, r.colorAny = uint8(min(max(v, 0), 255)), true
-		}
-		return
+		return // colours are not read
 	case dStyleSheet:
 		if r.styleWord(g, name, v, has) {
 			return
@@ -151,7 +143,6 @@ func (r *reader) word(t token.Token) {
 		g.dest, g.buf = dFontTbl, nil
 	case "colortbl":
 		g.dest, g.buf = dColorTbl, nil
-		r.colors, r.color, r.colorAny = r.colors[:0], rgb{}, false
 	case "stylesheet":
 		g.dest, g.buf = dStyleSheet, nil
 	case "listtable":
@@ -223,8 +214,6 @@ func (r *reader) word(t token.Token) {
 		g.p.intbl = true
 	case "itap":
 		g.p.itap = max(v, 0)
-	case "cbpat":
-		g.p.shd = v
 	case "listtext", "pntext":
 		if g.flow != nil {
 			g.flow.marker = newBuf(256)
@@ -268,8 +257,8 @@ func (r *reader) word(t token.Token) {
 			}
 			g.flow.endRow(level)
 		}
-	case "trowd", "cellx", "clmgf", "clmrg", "clvmgf", "clvmrg", "trhdr", "clcbpat":
-		r.rowWord(g, name, v)
+	case "trowd", "cellx", "clmgf", "clmrg", "clvmgf", "clvmrg", "trhdr":
+		r.rowWord(g, name)
 	case "nesttableprops":
 		g.dest, g.nest = dWords, true
 	case "nonesttables", "shprslt", "nonshppict", "ftnsep", "ftnsepc", "aftnsep", "aftnsepc", "ftncn", "aftncn":
@@ -294,24 +283,8 @@ func (r *reader) word(t token.Token) {
 		g.c.sup, g.c.sub = false, false
 	case "v":
 		g.c.hidden = on
-	case "webhidden":
-		g.c.webHidden = on
-	case "fs":
-		if has {
-			g.c.fs = v
-		} else {
-			g.c.fs = 24
-		}
 	case "f":
 		g.c.font = v
-	case "cf":
-		g.c.cf = v
-	case "cb":
-		g.c.cb = v
-	case "highlight":
-		g.c.hl = v
-	case "chcbpat":
-		g.c.shd = v
 	case "deleted":
 		g.c.deleted = on
 	case "revised":
@@ -405,7 +378,7 @@ func (r *reader) word(t token.Token) {
 		r.openShape(g)
 	case "shpinst", "shppict", "ud", "result":
 	case "shptxt", "dptxbxtext": // \dptxbxtext: the text box of a Word 6/95 drawing object
-		f := &flow{r: r, kind: flowBox, parent: g.flow, back: r.shape.background()}
+		f := &flow{r: r, kind: flowBox, parent: g.flow}
 		g.flow, g.buf, g.dest, g.p = f, nil, dBody, defaultPara()
 		g.onClose = f.end
 	case "sp":
@@ -424,8 +397,6 @@ func (r *reader) word(t token.Token) {
 		g.dest = dWords
 	case "background":
 		g.dest = dWords
-		r.bgDepth = len(r.stack)
-		g.onClose = func() { r.bgDepth = 0 }
 	case "pict":
 		r.openPict(g)
 	case "object":
@@ -578,16 +549,6 @@ func (r *reader) fontWord(name string, v int32) {
 	}
 }
 
-func (r *reader) endColor() {
-	if len(r.colors) >= 1<<16 {
-		return
-	}
-	c := r.color
-	c.auto = !r.colorAny
-	r.colors = append(r.colors, c)
-	r.color, r.colorAny = rgb{}, false
-}
-
 // styleWord reads a control word of a style definition. It reports
 // whether the word was taken.
 func (r *reader) styleWord(g *group, name string, v int32, has bool) bool {
@@ -606,46 +567,13 @@ func (r *reader) styleWord(g *group, name string, v int32, has bool) bool {
 	case "sbasedon":
 		st.basedOn = v
 	case "v":
-		st.set |= propHidden
-		st.hidden = on
-	case "webhidden":
-		st.set |= propWebHidden
-		st.webHidden = on
-	case "cf":
-		st.set |= propCf
-		st.c.cf = v
-	case "cb":
-		st.set |= propCb
-		st.c.cb = v
-	case "highlight":
-		st.set |= propHl
-		st.c.hl = v
-	case "chcbpat":
-		st.set |= propShd
-		st.c.shd = v
-	case "fs":
-		st.set |= propFs
-		st.c.fs = 24
-		if has {
-			st.c.fs = v
-		}
+		st.setsHidden, st.hidden = true, on
 	}
 	return true
 }
 
-// Character properties a style sets.
-const (
-	propHidden uint8 = 1 << iota
-	propWebHidden
-	propCf
-	propCb
-	propHl
-	propShd
-	propFs
-)
-
-// applyStyle gives c the character properties that style num sets, and
-// those of the styles it is based on, the base first. A paragraph style
+// applyStyle gives c the hidden-text property (\v) that style num sets, or
+// that a style it is based on sets, the base first. A paragraph style
 // (\sN) and a character style (\csN) are in two tables.
 func (r *reader) applyStyle(c *chr, num int32, char bool) {
 	table := r.styles
@@ -671,26 +599,8 @@ func (r *reader) applyStyle(c *chr, num int32, char bool) {
 		if st == nil {
 			continue
 		}
-		if st.set&propHidden != 0 {
+		if st.setsHidden {
 			c.hidden = st.hidden
-		}
-		if st.set&propWebHidden != 0 {
-			c.webHidden = st.webHidden
-		}
-		if st.set&propCf != 0 {
-			c.cf = st.c.cf
-		}
-		if st.set&propCb != 0 {
-			c.cb = st.c.cb
-		}
-		if st.set&propHl != 0 {
-			c.hl = st.c.hl
-		}
-		if st.set&propShd != 0 {
-			c.shd = st.c.shd
-		}
-		if st.set&propFs != 0 {
-			c.fs = st.c.fs
 		}
 	}
 }
@@ -743,7 +653,7 @@ func (r *reader) listWord(g *group, name string, v int32) {
 }
 
 // rowWord reads the control words that define a table row.
-func (r *reader) rowWord(g *group, name string, v int32) {
+func (r *reader) rowWord(g *group, name string) {
 	f := g.flow
 	if f == nil {
 		return
@@ -769,8 +679,6 @@ func (r *reader) rowWord(g *group, name string, v int32) {
 		d.next.vm = 1
 	case "clvmrg":
 		d.next.vm = 2
-	case "clcbpat":
-		d.next.shd = v
 	case "trhdr":
 		d.header = true
 	}
@@ -795,7 +703,7 @@ func (r *reader) endNote(f *flow, parent *flow) {
 	text, spans, hidden, rest := f.merge()
 	var out []gofastcore.Block
 	if text != "" {
-		b := gofastcore.Block{Text: text, Spans: spans, Hidden: hidden}
+		b := gofastcore.Block{Text: text, Spans: spans, Display: hidden}
 		if f.kind == flowNote {
 			b.Kind = gofastcore.KindNote
 			b.Attrs = map[string]string{gofastcore.AttrNoteType: gofastcore.NoteComment}

@@ -40,13 +40,8 @@ const (
 //	text.tracked_changes      the document has tracked changes
 //	text.unmapped_glyphs      bytes in a code page that is not decoded, or
 //	                          with no character in their code page
-//	text.hidden               text a reader cannot see; the blocks, spans
-//	                          and table cells concerned say why
-//	text.unshown_outlier      an item of routinely unshown data (a field
-//	                          instruction, an index entry, a stored item)
-//	                          is out of proportion for its kind, as
-//	                          gofastcore.UnshownOutlier decides; it is
-//	                          flagged invisible
+//	input.trailing_data       data follows the document's closing brace; its
+//	                          text is in the stored part as after_end
 //	image.unsupported_encoding
 //	structure.heading_level_clamped
 const (
@@ -57,10 +52,6 @@ const (
 	// were removed from extracted strings.
 	WarnControlCharsRemoved = reader.WarnControlCharsRemoved
 )
-
-// HiddenChecked is the set of hidden-text reasons this library checks
-// completely, recorded in every document's HiddenChecked.
-const HiddenChecked = reader.Checked
 
 // Extractor extracts RTF files. The zero value is ready to use and safe for
 // concurrent use. Its fields are the settings that only this library has;

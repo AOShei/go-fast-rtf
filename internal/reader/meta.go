@@ -9,68 +9,15 @@ import (
 	"github.com/AOShei/go-fast-core"
 )
 
-// hiddenOf returns the reasons text with properties c in a paragraph with
-// properties p, in a table cell shaded with colour index cell (0 for none),
-// cannot be seen; fill is that of the text box the text is in, or nil.
-func (r *reader) hiddenOf(c *chr, p *para, cell int32, fill *rgb) gofastcore.Hidden {
-	var h gofastcore.Hidden
-	// \webhidden hides text only in Web Layout and web pages; Word puts it
-	// on the page numbers of every table of contents. It is shown in the
-	// document, so it is not a reason.
+// displayOf returns what the file declares about the display of text with
+// character properties c: DisplayHidden for hidden text (\v), set on the
+// run or by a style. Nothing else is declared in RTF. \webhidden hides text
+// only in Web Layout and on web pages, a condition, so it is not reported.
+func displayOf(c *chr) gofastcore.Display {
 	if c.hidden {
-		h |= gofastcore.HiddenInvisible
+		return gofastcore.DisplayHidden
 	}
-	if float64(c.fs)/2 < gofastcore.HiddenTinySize {
-		h |= gofastcore.HiddenTiny
-	}
-	if r.lowContrast(c, p, cell, fill) {
-		h |= gofastcore.HiddenLowContrast
-	}
-	return h
-}
-
-// color returns the colour table entry i, if it is set and not auto.
-func (r *reader) colorAt(i int32) (rgb, bool) {
-	if i <= 0 || int(i) >= len(r.colors) || r.colors[i].auto {
-		return rgb{}, false
-	}
-	return r.colors[i], true
-}
-
-// lowContrast compares the text colour with what is behind the text: its
-// highlight, its shading, \cb, the paragraph's shading, the table cell's
-// shading, the fill of its text box, the page colour, white. Text in the
-// automatic colour is drawn to contrast with what is behind it, so it is
-// never low contrast.
-func (r *reader) lowContrast(c *chr, p *para, cell int32, fill *rgb) bool {
-	fg, ok := r.colorAt(c.cf)
-	if !ok {
-		return false
-	}
-	key := [2]int32{c.cf, -2}
-	back := rgb{r: 255, g: 255, b: 255}
-	found := false
-	for _, i := range []int32{c.hl, c.shd, c.cb, p.shd, cell} {
-		if bg, ok := r.colorAt(i); ok {
-			back, key[1], found = bg, i, true
-			break
-		}
-	}
-	switch {
-	case found:
-	case fill != nil:
-		back, key[1] = *fill, -3-(int32(fill.r)|int32(fill.g)<<8|int32(fill.b)<<16)
-	case r.page != nil:
-		back, key[1] = *r.page, -1
-	}
-	if v, ok := r.contrast[key]; ok {
-		return v
-	}
-	v := gofastcore.LowContrast(fg.r, fg.g, fg.b, back.r, back.g, back.b)
-	if len(r.contrast) < 1<<12 {
-		r.contrast[key] = v
-	}
-	return v
+	return 0
 }
 
 // revAuthor names the author of a revision from the revision table.
@@ -242,32 +189,6 @@ func (r *reader) metadata() {
 	if len(extra) > 0 {
 		m.Extra = extra
 	}
-	if hiddenInMetadata(m) {
-		r.doc.Warn(gofastcore.SeverityWarning, gofastcore.WarnTextHidden, "the document properties contain invisible characters")
-	}
-}
-
-func hiddenInMetadata(m *gofastcore.Metadata) bool {
-	found := func(s string) bool { return gofastcore.InvisibleChars(s) != nil }
-	if found(m.Title) || found(m.Subject) || found(m.Language) || found(m.Application) {
-		return true
-	}
-	for _, s := range m.Authors {
-		if found(s) {
-			return true
-		}
-	}
-	for _, s := range m.Keywords {
-		if found(s) {
-			return true
-		}
-	}
-	for k, v := range m.Extra {
-		if found(k) || found(v) {
-			return true
-		}
-	}
-	return false
 }
 
 // Fields.
@@ -312,36 +233,16 @@ func (r *reader) openField(g *group) {
 		if top.flow == nil {
 			return
 		}
-		top.flow.after = append(top.flow.after, r.unshownNoteOf(code, linksOut(code)))
+		top.flow.after = append(top.flow.after, r.fieldNote(code))
 	}
 }
 
-// linksOut leaves out of a field instruction the addresses it holds
-// (tokens with "://" or "@"), which are routinely long, for the outlier
-// rule; the rest of the instruction is held to it. go-fast-email does the
-// same with the links of mail.
-func linksOut(code string) string {
-	var keep []string
-	for tok := range strings.FieldsSeq(code) {
-		if strings.Contains(tok, "://") || strings.Contains(tok, "@") {
-			continue
-		}
-		keep = append(keep, tok)
-	}
-	return strings.Join(keep, " ")
-}
-
-// unshownNoteOf makes the note of a field instruction or an index or
-// table-of-contents entry: unflagged, unless counted is an outlier.
-// counted is the instruction without its addresses, or the entry without
-// the name of the field it stands for.
-func (r *reader) unshownNoteOf(text, counted string) gofastcore.Block {
+// fieldNote makes the note of a field instruction or an index or
+// table-of-contents entry. It carries no display reason: the file keeps
+// such text without showing it, and says nothing more about it.
+func (r *reader) fieldNote(text string) gofastcore.Block {
 	b := gofastcore.Block{Kind: gofastcore.KindNote, Text: text,
 		Attrs: map[string]string{gofastcore.AttrNoteType: gofastcore.NoteField}}
-	if gofastcore.UnshownOutlier(counted) {
-		b.Hidden = gofastcore.HiddenInvisible
-		r.outliers++
-	}
 	r.holdBlock(&b) // it waits for its paragraph to end
 	return b
 }
@@ -365,7 +266,7 @@ func (r *reader) openEntry(g *group, name string) {
 		if text == "" || f == nil {
 			return
 		}
-		f.after = append(f.after, r.unshownNoteOf(entryWords[name]+" "+text, text))
+		f.after = append(f.after, r.fieldNote(entryWords[name]+" "+text))
 	}
 }
 

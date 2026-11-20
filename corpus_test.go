@@ -20,8 +20,8 @@ import (
 // ../.testdata/corpus): every RTF file under dev/ and heldout/, each with
 // a time limit and bounded budgets. It logs one tally per set (counts
 // only: held-out files are scored, never looked at) and fails on a panic,
-// a Validate failure or a timeout. With -v it also logs each hidden flag
-// found in dev/ files, with an excerpt, for judging false positives.
+// a Validate failure or a timeout. With -v it also logs each display reason
+// found in dev/ files, with an excerpt.
 func TestCorpus(t *testing.T) {
 	root := os.Getenv("GOFAST_CORPUS")
 	if root == "" {
@@ -155,19 +155,19 @@ func (t *tally) add(r corpusResult) {
 	if r.doc == nil {
 		return
 	}
-	var inFile gofastcore.Hidden
+	var inFile gofastcore.Display
 	for _, b := range r.doc.AllBlocks() {
-		if b.Hidden == 0 {
+		if b.Display == 0 {
 			continue
 		}
-		inFile |= b.Hidden
-		for bit := gofastcore.Hidden(1); bit != 0; bit <<= 1 {
-			if b.Hidden&bit != 0 {
+		inFile |= b.Display
+		for bit := gofastcore.Display(1); bit != 0; bit <<= 1 {
+			if b.Display&bit != 0 {
 				t.reasons[bit.String()]++
 			}
 		}
 	}
-	for bit := gofastcore.Hidden(1); bit != 0; bit <<= 1 {
+	for bit := gofastcore.Display(1); bit != 0; bit <<= 1 {
 		if inFile&bit != 0 {
 			t.reasons["files "+bit.String()]++
 		}
@@ -193,20 +193,20 @@ func (t *tally) String() string {
 	}
 	fmt.Fprintf(&sb, "  files: %d\n", t.files)
 	line("results", t.counts)
-	line("hidden blocks by reason", t.reasons)
+	line("blocks (and files) by display reason", t.reasons)
 	line("warnings by code", t.warnings)
 	return sb.String()
 }
 
-// logFlags logs each hidden flag of a dev/ document with an excerpt.
+// logFlags logs each display reason of a dev/ document with an excerpt.
 func logFlags(t *testing.T, name string, doc *gofastcore.Document) {
 	for part, b := range doc.AllBlocks() {
-		if b.Hidden == 0 {
+		if b.Display == 0 {
 			continue
 		}
 		text := b.Text
 		for _, sp := range b.Spans {
-			if sp.Hidden != 0 {
+			if sp.Display != 0 {
 				text = b.Text[sp.Start:sp.End]
 				break
 			}
@@ -222,6 +222,6 @@ func logFlags(t *testing.T, name string, doc *gofastcore.Document) {
 		if len(r) > 60 {
 			r = r[:60]
 		}
-		t.Logf("FLAG %s part %d %s %s: %q", name, part.Number, b.Kind, b.Hidden, string(r))
+		t.Logf("DISPLAY %s part %d %s %s: %q", name, part.Number, b.Kind, b.Display, string(r))
 	}
 }

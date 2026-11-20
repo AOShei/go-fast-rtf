@@ -26,14 +26,6 @@ const (
 	WarnControlCharsRemoved = "rtf.control_characters_removed"
 )
 
-func outlierMessage(n int, what string) string {
-	return fmt.Sprintf("%d %s of more than %d words or %d characters, which the document does not show",
-		n, what, gofastcore.UnshownOutlierWords, gofastcore.UnshownOutlierChars)
-}
-
-// Checked is the set of hidden-text reasons this reader checks completely.
-const Checked = gofastcore.HiddenInvisible | gofastcore.HiddenTiny | gofastcore.HiddenLowContrast | gofastcore.HiddenChars
-
 // Config is what the reader is told besides the input.
 type Config struct {
 	Opts          *gofastcore.Options
@@ -44,14 +36,12 @@ type Config struct {
 
 // chr holds the character properties.
 type chr struct {
-	font              int32
-	fs                int32 // half-points
-	cf, cb, hl, shd   int32 // colour table indexes; 0 is auto or none
-	hidden, webHidden bool
-	deleted           bool
-	bold, italic, ul  bool
-	strike, sup, sub  bool
-	revDel, dttmDel   int32
+	font             int32
+	hidden           bool // \v
+	deleted          bool
+	bold, italic, ul bool
+	strike, sup, sub bool
+	revDel, dttmDel  int32
 }
 
 // para holds the paragraph properties.
@@ -62,7 +52,6 @@ type para struct {
 	ilvl    int32
 	itap    int32
 	intbl   bool
-	shd     int32 // \cbpat: colour index of the paragraph's shading
 	bdr     uint8 // sides with a border that has a style
 	bpend   uint8 // sides the border words being read are for
 }
@@ -148,11 +137,6 @@ type listDef struct {
 	open   bool
 }
 
-type rgb struct {
-	r, g, b uint8
-	auto    bool
-}
-
 type style struct {
 	num     int32
 	name    *strbuf
@@ -160,11 +144,9 @@ type style struct {
 	basedOn int32
 	char    bool // a character, section or table style, not a paragraph style
 	cs      bool // a character style
-	// The character properties the style sets: those in set.
-	set       uint8
-	hidden    bool
-	webHidden bool
-	c         chr
+	// hidden is the style's \v, if it sets it (setsHidden).
+	setsHidden bool
+	hidden     bool
 }
 
 type reader struct {
@@ -183,39 +165,34 @@ type reader struct {
 
 	body *flow
 
-	ansicpg  int
-	deff     int32
-	fonts    map[int32]font
-	curFont  int32 // font being defined in the font table
-	colors   []rgb
-	color    rgb
-	colorAny bool
-	styles   map[int32]*style  // paragraph styles (and section and table styles)
-	cstyles  map[int32]*style  // character styles
-	lists    map[int32][]int32 // list id -> \levelnfc of each level
-	lsList   map[int32]int32   // \ls -> list id
-	revs     []string
-	page     *rgb // the page's background colour, if the file sets one
-	lang     int32
+	ansicpg int
+	deff    int32
+	fonts   map[int32]font
+	curFont int32             // font being defined in the font table
+	styles  map[int32]*style  // paragraph styles (and section and table styles)
+	cstyles map[int32]*style  // character styles
+	lists   map[int32][]int32 // list id -> \levelnfc of each level
+	lsList  map[int32]int32   // \ls -> list id
+	revs    []string
+	lang    int32
 
 	form        *formField
 	curList     *listDef
 	curOverride *[3]int32 // list id, \ls, list id set
-	bgDepth     int
 	props       [][2]*strbuf
 	docvars     [][2]string // text, name
 	userprops   [][2]string
 	unsupported int
-	// unshown items out of proportion for their kind, in the body and in
-	// the stored part
-	outliers, storeOutliers int
+	// endAt is the offset just after the document's closing brace;
+	// trailingData says that more than white space follows it.
+	endAt        int64
+	trailingData bool
 
 	dec      codepage.Decoder
 	ucLeft   int32
 	hiSurr   rune
 	unmapped map[int]int
 	removed  int
-	contrast map[[2]int32]bool
 
 	fields           []*field
 	shape            *shape
@@ -268,7 +245,6 @@ func Read(ctx context.Context, src io.Reader, cfg Config) (*gofastcore.Document,
 		lists:     map[int32][]int32{},
 		lsList:    map[int32]int32{},
 		unmapped:  map[int]int{},
-		contrast:  map[[2]int32]bool{},
 		unread:    map[string]int{},
 		delivered: map[string]bool{},
 		info:      map[string]*strbuf{},
@@ -286,7 +262,7 @@ func Read(ctx context.Context, src io.Reader, cfg Config) (*gofastcore.Document,
 	return r.doc, nil
 }
 
-func defaultChr() chr { return chr{fs: 24} }
+func defaultChr() chr { return chr{} }
 
 func defaultPara() para { return para{outline: -1} }
 
@@ -438,7 +414,7 @@ func (r *reader) close() {
 	r.stack = r.stack[:len(r.stack)-1]
 	if len(r.stack) == 0 {
 		r.body.end()
-		r.ended = true
+		r.ended, r.endAt = true, r.lex.Read
 	}
 }
 
@@ -453,10 +429,22 @@ func (r *reader) skipGroup() {
 	r.skip = 1
 }
 
-// afterEnd reads what follows the closing brace of the document. No
-// program shows it; its text is kept in the stored part.
+// afterEnd reads what follows the closing brace of the document. Its text
+// is kept in the stored part, as after_end. Anything other than white
+// space and NUL bytes there is trailing data, for the warning.
 func (r *reader) afterEnd(t token.Token) {
-	if t.Kind != token.Text && t.Kind != token.Hex {
+	switch t.Kind {
+	case token.Text:
+		for _, b := range t.Data {
+			if b != ' ' && b != '\t' && b != 0 {
+				r.trailingData = true
+				break
+			}
+		}
+	case token.Hex:
+		r.trailingData = true
+	default:
+		r.trailingData = true
 		return
 	}
 	if r.trailing == nil {
@@ -500,14 +488,7 @@ func (r *reader) text(data []byte) {
 			r.obj.hex(data)
 		}
 		return
-	case dColorTbl:
-		for _, b := range data {
-			if b == ';' {
-				r.endColor()
-			}
-		}
-		return
-	case dFontTbl, dListTable, dListOverrideTable, dWords, dRevTbl:
+	case dColorTbl, dFontTbl, dListTable, dListOverrideTable, dWords, dRevTbl:
 		if g.dest == dRevTbl && g.buf != nil {
 			break
 		}
@@ -716,9 +697,6 @@ func (r *reader) finish() {
 		part.Warn(gofastcore.SeverityInfo, gofastcore.WarnTextTrackedChanges,
 			strconv.Itoa(r.inserted)+" insertions, "+strconv.Itoa(r.deleted)+" deletions; text is given with all changes accepted")
 	}
-	if r.outliers > 0 {
-		part.Warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnshownOutlier, outlierMessage(r.outliers, "field instructions or index entries"))
-	}
 	if r.removed > 0 {
 		part.Warn(gofastcore.SeverityInfo, WarnControlCharsRemoved, strconv.Itoa(r.removed))
 	}
@@ -744,10 +722,9 @@ func (r *reader) finish() {
 	if r.active > 0 {
 		r.doc.Warn(gofastcore.SeverityWarning, gofastcore.WarnInputActiveContent, fmt.Sprintf("%d fields or controls that run commands or programs; nothing was run", r.active))
 	}
-	part.MarkHidden()
+	part.Finish()
 	r.doc.Parts = append(r.doc.Parts, *part)
 	r.storedPart()
-	r.doc.HiddenChecked = Checked
 }
 
 func (r *reader) unmappedWarnings(part *gofastcore.Part) {
@@ -820,11 +797,8 @@ func (r *reader) add(b gofastcore.Block) {
 	r.part.Blocks = append(r.part.Blocks, b)
 }
 
-// storedTrailing is Attrs["stored"] of the text after the document's
-// closing brace.
-const storedTrailing = "trailing_data"
-
-// addStored appends a block to the stored part.
+// addStored appends a block to the stored part. Stored data carries no
+// display reason: it is where it came from, and the file says no more.
 func (r *reader) addStored(text, kind, name string) {
 	text = cleanText(text)
 	if text == "" || r.textCut {
@@ -835,15 +809,6 @@ func (r *reader) addStored(text, kind, name string) {
 		attrs[gofastcore.AttrName] = name
 	}
 	b := gofastcore.Block{Kind: gofastcore.KindParagraph, Text: text, Attrs: attrs}
-	switch {
-	case kind == storedTrailing:
-		// Clean files have nothing after the closing brace: it is a
-		// signal at any length, not an outlier of routine data.
-		b.Hidden = gofastcore.HiddenInvisible
-	case gofastcore.UnshownOutlier(text):
-		b.Hidden = gofastcore.HiddenInvisible
-		r.storeOutliers++
-	}
 	if !r.cfg.Text.Take(gofastcore.BlockCost + len(text) + len(name)) {
 		r.textCut = true
 		r.store.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, "the text limit was reached; the stored data is cut off there")
@@ -854,21 +819,36 @@ func (r *reader) addStored(text, kind, name string) {
 
 func (r *reader) storedPart() {
 	if r.trailing != nil {
-		r.addStored(r.trailing.String(), storedTrailing, "")
+		r.addStored(r.trailing.String(), gofastcore.StoredAfterEnd, "")
 	}
-	if len(r.store.Blocks) == 0 {
-		return
+	// Data after the closing brace is stated in a warning on the stored
+	// part, or on the document when there is no stored part to carry it.
+	trailing := ""
+	if r.trailingData && !r.textCut {
+		n := r.lex.Read - r.endAt
+		noun := "bytes follow"
+		if n == 1 {
+			noun = "byte follows"
+		}
+		trailing = fmt.Sprintf("%d %s the end of the document", n, noun)
 	}
-	if !r.opts.Parts.Contains(2) || r.opts.Parts != (gofastcore.PartRange{}) {
+	warnDoc := func() {
+		if trailing != "" {
+			r.doc.Warn(gofastcore.SeverityInfo, gofastcore.WarnInputTrailingData, trailing)
+		}
+	}
+	if len(r.store.Blocks) == 0 || !r.opts.Parts.Contains(2) || r.opts.Parts != (gofastcore.PartRange{}) {
+		warnDoc()
 		return
 	}
 	if m := r.opts.Limits.MaxParts; m > 0 && m < 2 {
 		r.doc.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, "the part limit was reached; the stored part is left out")
+		warnDoc()
 		return
 	}
-	if r.storeOutliers > 0 {
-		r.store.Warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnshownOutlier, outlierMessage(r.storeOutliers, "stored items"))
+	if trailing != "" {
+		r.store.Warn(gofastcore.SeverityInfo, gofastcore.WarnInputTrailingData, trailing)
 	}
-	r.store.MarkHidden()
+	r.store.Finish()
 	r.doc.Parts = append(r.doc.Parts, *r.store)
 }

@@ -35,9 +35,9 @@ func main() {
 	os.Exit(run(ctx, os.Args[1:], os.Stdout, os.Stderr))
 }
 
-// hiddenFlag is --exclude-hidden: given alone it stands for every reason,
+// hiddenFlag is --exclude-display: given alone it stands for every reason,
 // and with a value for the reasons named.
-type hiddenFlag struct{ reasons gofastcore.Hidden }
+type hiddenFlag struct{ reasons gofastcore.Display }
 
 func (h *hiddenFlag) IsBoolFlag() bool { return true }
 func (h *hiddenFlag) String() string {
@@ -50,18 +50,18 @@ func (h *hiddenFlag) String() string {
 func (h *hiddenFlag) Set(v string) error {
 	switch v {
 	case "true", "all":
-		h.reasons = gofastcore.HiddenAny
+		h.reasons = gofastcore.DisplayAny
 		return nil
 	case "false", "":
 		h.reasons = 0
 		return nil
 	}
-	var reasons gofastcore.Hidden
+	var reasons gofastcore.Display
 	if err := reasons.UnmarshalText([]byte(strings.ReplaceAll(v, ",", "+"))); err != nil {
 		return err
 	}
 	if !reasons.Valid() || reasons == 0 {
-		return fmt.Errorf("unknown reason in %q; the reasons are %s", v, strings.ReplaceAll((gofastcore.HiddenAny&^gofastcore.HiddenUnknown).String(), "+", ", "))
+		return fmt.Errorf("unknown reason in %q; the reasons are %s", v, strings.ReplaceAll((gofastcore.DisplayAny&^gofastcore.DisplayUnknown).String(), "+", ", "))
 	}
 	h.reasons = reasons
 	return nil
@@ -84,9 +84,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		version  = flags.Bool("version", false, "print the version and exit")
 		// For Markdown and text.
 		furniture = flags.Bool("furniture", false, "in Markdown and text, include running headers and footers")
+		stored    = flags.Bool("stored", false, "in Markdown and text, include the stored part (document variables, custom properties, the generator, data after the end)")
 	)
 	var exclude hiddenFlag
-	flags.Var(&exclude, "exclude-hidden", "in Markdown and text, leave out hidden text: all of it, or with =reasons only what is hidden for those reasons, such as tiny,low_contrast (JSON always has everything, flagged)")
+	flags.Var(&exclude, "exclude-display", "in Markdown and text, leave out what the file declares is not shown: all of it, or with =reasons only those reasons, such as hidden (JSON always has everything, with its reasons)")
 	flags.Usage = func() {
 		fmt.Fprintln(stderr, "usage: gofastrtf [flags] file-or-directory...")
 		fmt.Fprintln(stderr, "Extracts RTF files. A directory stands for the .rtf files in it and below it.")
@@ -180,7 +181,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	w := bufio.NewWriter(out)
 	defer w.Flush()
-	render := &gofastcore.RenderOptions{Furniture: *furniture, ExcludeHidden: exclude.reasons}
+	render := &gofastcore.RenderOptions{Furniture: *furniture, Stored: *stored, ExcludeDisplay: exclude.reasons}
 
 	written := 0
 	for _, path := range inputs {
@@ -243,12 +244,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 }
 
 // remarks sums up what a document's warnings say that a person running the
-// command would want to know without reading the JSON: text that is
-// hidden, and anything of severity error.
+// command would want to know without reading the JSON: anything of
+// severity error.
 func remarks(doc *gofastcore.Document) string {
 	counts := map[string]int{}
 	for _, w := range doc.AllWarnings() {
-		if w.Severity == gofastcore.SeverityError || w.Code == gofastcore.WarnTextHidden {
+		if w.Severity == gofastcore.SeverityError {
 			counts[w.Code]++
 		}
 	}

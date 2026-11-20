@@ -22,11 +22,11 @@ const (
 	flowNote                     // one comment note
 )
 
-// run is a range of the paragraph's text with the same hidden reasons,
+// run is a range of the paragraph's text with the same display reasons,
 // style and link. Text with none of them has no run.
 type run struct {
 	start, end int
-	hidden     gofastcore.Hidden
+	hidden     gofastcore.Display
 	style      gofastcore.Style
 	href       string
 }
@@ -37,7 +37,6 @@ type flow struct {
 	r      *reader
 	kind   flowKind
 	parent *flow
-	back   *rgb // the fill of the text box, if it has one
 
 	text      []byte
 	runs      []run
@@ -94,7 +93,7 @@ func (f *flow) add(c rune, g *group) {
 	if len(f.del) > 0 {
 		f.flushDel()
 	}
-	h := r.hiddenOf(&g.c, &g.p, f.cellShading(&g.p), f.back)
+	h := displayOf(&g.c)
 	var st gofastcore.Style
 	href := ""
 	if r.opts.Spans {
@@ -233,8 +232,8 @@ func (f *flow) endParaAt(p para, level int) {
 }
 
 // paraBlock makes the block of a paragraph outside a table.
-func (r *reader) paraBlock(f *flow, p para, text string, spans []gofastcore.Span, hidden gofastcore.Hidden, marker string, hasMarker bool) gofastcore.Block {
-	b := gofastcore.Block{Kind: gofastcore.KindParagraph, Text: text, Spans: spans, Hidden: hidden}
+func (r *reader) paraBlock(f *flow, p para, text string, spans []gofastcore.Span, hidden gofastcore.Display, marker string, hasMarker bool) gofastcore.Block {
+	b := gofastcore.Block{Kind: gofastcore.KindParagraph, Text: text, Spans: spans, Display: hidden}
 	b.Loc.Anchor = f.anchor
 	if lvl := r.headingLevel(p); lvl > 0 {
 		b.Kind, b.Marker = gofastcore.KindHeading, marker
@@ -379,7 +378,7 @@ func (f *flow) end() {
 // merge ends a footnote or comment flow and returns its text as one block,
 // paragraphs separated by line breaks, and what else it held (tables,
 // pictures, notes), which follows it.
-func (f *flow) merge() (text string, spans []gofastcore.Span, hidden gofastcore.Hidden, rest []gofastcore.Block) {
+func (f *flow) merge() (text string, spans []gofastcore.Span, hidden gofastcore.Display, rest []gofastcore.Block) {
 	f.end()
 	var buf []byte
 	var runs []run
@@ -402,11 +401,11 @@ func (f *flow) merge() (text string, spans []gofastcore.Span, hidden gofastcore.
 			at += len(b.Marker) + 1
 		}
 		buf = append(buf, t...)
-		if whole := b.HiddenWhole(); whole != 0 {
+		if whole := b.DisplayWhole(); whole != 0 {
 			runs = append(runs, run{start: len(buf) - len(t), end: len(buf), hidden: whole})
 		}
 		for _, s := range b.Spans {
-			runs = append(runs, run{start: s.Start + at, end: s.End + at, hidden: s.Hidden, style: s.Style, href: s.Href})
+			runs = append(runs, run{start: s.Start + at, end: s.End + at, hidden: s.Display, style: s.Style, href: s.Href})
 		}
 	}
 	text, spans, hidden = settle(buf, runs)
@@ -417,7 +416,7 @@ func (f *flow) merge() (text string, spans []gofastcore.Span, hidden gofastcore.
 // hidden reason that covers all of the text becomes a reason of the whole
 // block, which is how the model says it; one that covers part stays on
 // its spans.
-func settle(raw []byte, runs []run) (string, []gofastcore.Span, gofastcore.Hidden) {
+func settle(raw []byte, runs []run) (string, []gofastcore.Span, gofastcore.Display) {
 	from := len(raw) - len(bytes.TrimLeftFunc(raw, unicode.IsSpace))
 	to := len(bytes.TrimRightFunc(raw, unicode.IsSpace))
 	if from >= to {
@@ -427,23 +426,23 @@ func settle(raw []byte, runs []run) (string, []gofastcore.Span, gofastcore.Hidde
 	if len(runs) == 0 {
 		return string(text), nil, 0
 	}
-	var all gofastcore.Hidden
+	var all gofastcore.Display
 	spans := make([]gofastcore.Span, 0, len(runs))
 	for _, ru := range runs {
-		s := gofastcore.Span{Start: max(ru.start, from) - from, End: min(ru.end, to) - from, Hidden: ru.hidden, Style: ru.style, Href: ru.href}
+		s := gofastcore.Span{Start: max(ru.start, from) - from, End: min(ru.end, to) - from, Display: ru.hidden, Style: ru.style, Href: ru.href}
 		if s.Start < s.End {
 			spans = append(spans, s)
-			all |= s.Hidden
+			all |= s.Display
 		}
 	}
 	whole := all
-	for bit := gofastcore.Hidden(1); bit != 0 && bit <= all; bit <<= 1 {
+	for bit := gofastcore.Display(1); bit != 0 && bit <= all; bit <<= 1 {
 		if all&bit == 0 {
 			continue
 		}
 		at := 0
 		for _, sp := range spans {
-			if sp.Hidden&bit == 0 {
+			if sp.Display&bit == 0 {
 				continue
 			}
 			if sp.Start > at && len(bytes.TrimSpace(text[at:sp.Start])) > 0 {
@@ -458,8 +457,8 @@ func settle(raw []byte, runs []run) (string, []gofastcore.Span, gofastcore.Hidde
 	}
 	kept := spans[:0]
 	for _, sp := range spans {
-		sp.Hidden &^= whole
-		if sp.Hidden != 0 || sp.Style != 0 || sp.Href != "" {
+		sp.Display &^= whole
+		if sp.Display != 0 || sp.Style != 0 || sp.Href != "" {
 			kept = append(kept, sp)
 		}
 	}
@@ -501,11 +500,11 @@ func cleanMarker(s string) string {
 
 type cell struct {
 	text   []byte
-	hidden gofastcore.Hidden
+	hidden gofastcore.Display
 	href   string
 }
 
-func (c *cell) addPara(text string, hidden gofastcore.Hidden, spans []gofastcore.Span) {
+func (c *cell) addPara(text string, hidden gofastcore.Display, spans []gofastcore.Span) {
 	if text == "" {
 		return
 	}
@@ -526,25 +525,6 @@ func (c *cell) addPara(text string, hidden gofastcore.Hidden, spans []gofastcore
 
 type cellDef struct {
 	hm, vm uint8 // 1 first of a merge, 2 merged into it
-	shd    int32 // \clcbpat: colour index of the cell's shading
-}
-
-// cellShading is the colour index of the shading of the table cell that
-// text with paragraph properties p is in, or 0.
-func (f *flow) cellShading(p *para) int32 {
-	level := tableLevel(*p)
-	if level == 0 || level > len(f.defs) {
-		return 0
-	}
-	cells := f.defs[level-1].cells
-	i := 0
-	if level <= len(f.tables) {
-		i = len(f.tables[level-1].cur)
-	}
-	if i < len(cells) {
-		return cells[i].shd
-	}
-	return 0
 }
 
 type rowDef struct {
@@ -555,7 +535,7 @@ type rowDef struct {
 
 type table struct {
 	rows       [][]string
-	hidden     []gofastcore.HiddenCells
+	hidden     []gofastcore.DisplayCells
 	details    []gofastcore.CellDetail
 	cur        []cell
 	c          cell
@@ -618,7 +598,7 @@ func (f *flow) endRow(level int) {
 	for i, c := range t.cur {
 		row[i] = cleanText(string(c.text))
 		if c.hidden != 0 && row[i] != "" {
-			t.hidden = append(t.hidden, gofastcore.HiddenCells{Row: ri, Col: i, RowSpan: 1, ColSpan: 1, Hidden: c.hidden})
+			t.hidden = append(t.hidden, gofastcore.DisplayCells{Row: ri, Col: i, RowSpan: 1, ColSpan: 1, Display: c.hidden})
 		}
 		if c.href != "" {
 			t.details = append(t.details, gofastcore.CellDetail{Row: ri, Col: i, Href: c.href})
@@ -676,12 +656,12 @@ func (f *flow) closeDeeper(level int) {
 		f.tables = f.tables[:n-1]
 		outer := f.tables[len(f.tables)-1]
 		var lines []string
-		var hidden gofastcore.Hidden
+		var hidden gofastcore.Display
 		for _, row := range t.rows {
 			lines = append(lines, strings.TrimRight(strings.Join(row, "\t"), "\t"))
 		}
 		for _, h := range t.hidden {
-			hidden |= h.Hidden
+			hidden |= h.Display
 		}
 		outer.c.addPara(strings.TrimSpace(strings.Join(lines, "\n")), hidden, nil)
 		outer.after = append(outer.after, t.after...)
@@ -722,13 +702,13 @@ func (t *table) block() (gofastcore.Block, bool) {
 		}
 		t.rows[i] = row
 	}
-	tb := &gofastcore.Table{Rows: t.rows, HeaderRows: t.headerRows, Merges: sanitizeMerges(t.merges, len(t.rows), cols), Hidden: t.hidden}
+	tb := &gofastcore.Table{Rows: t.rows, HeaderRows: t.headerRows, Merges: sanitizeMerges(t.merges, len(t.rows), cols), Display: t.hidden}
 	if len(t.details) > 0 {
 		tb.Cells = t.details
 	}
 	b := gofastcore.Block{Kind: gofastcore.KindTable, Table: tb}
 	for _, h := range t.hidden {
-		b.Hidden |= h.Hidden
+		b.Display |= h.Display
 	}
 	return b, true
 }

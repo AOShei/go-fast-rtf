@@ -50,7 +50,7 @@ never shows, a second part of kind `stored` follows it (see below);
 | `\footnote` | `footnote` after its paragraph, paragraphs joined by `\n`; `Marker` is its number (`\chftn`) in the document's format (`\ftnnar`, `\aftnnrlc`, ...): arabic for footnotes, lower-case roman for endnotes (`\ftnalt`) unless the document says otherwise |
 | `\annotation` with `\atnauthor`/`\atnid`, `\atndate` | `note` of type `comment`, with `author` and `date` |
 | `\deleted` | left out of the text and kept as a `note` of type `deletion` with `author` (`\revauthdel` and the revision table) and `date` (`\revdttmdel`); `text.tracked_changes` |
-| `\field` | the result (`\fldrslt`) is in the text; the instruction (`\fldinst`) is a `note` of type `field`, not flagged hidden unless it is an outlier (see Hidden text); a field nested in an instruction is written into it as `{ ... }` |
+| `\field` | the result (`\fldrslt`) is in the text; the instruction (`\fldinst`) is a `note` of type `field`, with no display reason; a field nested in an instruction is written into it as `{ ... }` |
 | `HYPERLINK` field | with `Options.Spans`, a span with `Href` over the result (`\l` gives `#anchor`); in a table cell, `Table.Cells[].Href` |
 | `\pict` | `image` after its paragraph: `Image.ID` `pict-N`, MIME from `\pngblip`, `\jpegblip`, `\emfblip`, `\wmetafile`, `\macpict`, `\dibitmap`, `\wbitmap`; pixel size from the PNG or JPEG header, or `\picw`/`\pich` for bitmaps; alt text from `wzDescription` of `\picprop` or of the shape. `\nonshppict` and `\shprslt` (copies for old readers) are skipped |
 | `\shptxt`, `\dptxbxtext` | the text of a text box (of a shape, or of a Word 6/95 drawing object `\do`): its blocks follow the paragraph the shape is in |
@@ -78,73 +78,52 @@ Destinations marked `\*` that this library does not know are skipped, as the
 specification asks. So are theme data, the colour scheme map, the data
 store, latent styles, rsid tables and the like, which hold no text.
 
-## Hidden text
+## What the file declares
 
-Hidden text is extracted like any other and flagged with the reason it is
-not seen; the part carries one `text.hidden` warning. All checks are cheap
-and always run; `Options.DeepHidden` changes nothing.
-`Document.HiddenChecked` is `invisible+tiny+low_contrast+invisible_chars`.
+Everything the file contains is extracted. A block, span or table region
+carries a display reason (`Block.Display`, JSON `display`) only where the
+file states outright that its text is not shown. RTF declares this:
 
-| Reason | When |
+| Reason | Declared by |
 |---|---|
-| `invisible` | `\v` (hidden text); and an item of routinely unshown data that is out of proportion for its kind (below) |
-| `tiny` | `\fsN` below 2 points (N < 4), including `\fs0` |
-| `low_contrast` | the text colour (`\cf`) against what is behind it, judged with `gofastcore.LowContrast`: the first set of `\highlight`, `\chcbpat`, `\cb`, the paragraph's `\cbpat`, the table cell's `\clcbpat`, the `fillColor` of the text box (white if it sets none; the page if `fFilled` is 0), the page colour (the `fillColor` of `\*\background`), else white. Text in the automatic colour is never flagged |
-| `invisible_chars` | core's scan, on every block |
+| `hidden` | `\v` (hidden text) on the run, or set by a paragraph style (`\sN`) or a character style (`\csN`) of the `\stylesheet`, followed through `\sbasedon`. The style's `\v` applies where `\s` or `\cs` stands; `\v0` written after it wins, and `\plain` ends it |
+| `no_ink` | none. RTF has no control that draws text with no paint: character colour (`\cf`) is a colour-table entry with no transparency, and outline, emboss and shadow effects still draw the letters |
 
-These properties count whether they are written on the run or set by a
-style: a paragraph style (`\sN`) or a character style (`\csN`) of the
-`\stylesheet`, followed through `\sbasedon`, that sets `\v`,
-`\cf`, `\cb`, `\highlight`, `\chcbpat` or `\fs`. The style's properties are
-applied where `\s` or `\cs` stands; properties written after it win, and
-`\plain` resets them.
+A hidden passage of a paragraph is a span with `display` set; a paragraph
+hidden throughout carries the reason on the block. In a table, a cell that
+holds hidden text is a `Table.Display` region. A comment's or footnote's
+hidden passages are spans like a paragraph's. `RenderOptions.ExcludeDisplay`
+(the command's `-exclude-display`) leaves such text out of Markdown and
+plain text.
 
-`\webhidden` is not a reason: it hides text only in Web Layout and in web
-pages, and Word puts it on the tab and page number of every table of
-contents entry, which the document shows.
+Not reported, because the file does not declare them: the colour of text
+against what is behind it, the size of text (`\fs0` included), where a
+shape is placed and what it covers. Colour, size, position and overlap are
+not judged. Nor is `\webhidden`, which hides text only in Word's Web Layout
+and on web pages, a condition: Word puts it on the page numbers of every
+table of contents, which the document shows.
 
-In a table, a cell that holds hidden text is a `Table.Hidden` region with its
-reasons. A comment's or footnote's hidden passages are spans like a
-paragraph's.
+Data the file keeps without showing it has no reason either, and stays
+where its provenance puts it: field instructions, and index and
+table-of-contents entries (`\xe`, `\tc`, `\tcn`), are `note` blocks of type
+`field` after their paragraph, written as Word writes the field
+(`XE entry`, `TC entry`); tracked deletions are `note` blocks of type
+`deletion`, the text being given as if the changes were accepted; document
+properties are metadata; the rest is in the stored part.
 
-Tracked deletions are not flagged hidden: as in go-fast-ooxml they are
-`note` blocks of type `deletion`, and the text is given as if the changes were
-accepted.
+Characters that display as nothing (zero-width characters, Unicode tag
+characters, bidirectional controls, variation selectors) are kept in the
+text as the file has them.
 
-What `invisible` and the others cannot see: shapes positioned off the page,
-text covered by pictures, text inside pictures, a fill given as a scheme
-or system colour or as a gradient, and cell shading given only as a
-pattern (`\clshdng`, `\clcfpat`).
+The library reports what the file declares about its content; it does not
+judge whether text is visible or harmful, and the absence of a reason says
+nothing about either. Threat detection is outside this library.
 
-### What the file stores and never shows
+### The stored part
 
-The flag marks a hiding mechanism applied to content that would otherwise be
-seen. Data that RTF files routinely keep and never show is extracted and
-bounded but **not** flagged, since nearly every file has some and the flag
-would then tell nothing: field instructions, index and table-of-contents
-entries (`\xe`, `\tc`, `\tcn`, which become `note` blocks of type `field`
-after their paragraph, written as Word writes the field: `XE entry`,
-`TC entry`), document properties, and the stored part below. One such item
-that is out of proportion for its kind, as core's `UnshownOutlier` decides
-(more than 30 words, or more than 300 characters other than white space),
-is flagged `invisible`, that item alone, and its part carries the warning
-`text.unshown_outlier`. The words of an index or table-of-contents entry
-are counted without the `XE` or `TC` in front. One kind of data is exempt:
-the addresses in a field instruction (tokens with `://` or `@`, such as the
-link of a `HYPERLINK` field, which Safe Links and search addresses make
-routinely longer than 300 characters) are left out when the instruction
-is measured; the rest of it, a screen tip for instance, is held to the
-rule.
-
-Text after the document's closing brace is different: clean files never
-have any, so it is flagged `invisible` whatever its length, and the
-outlier rule does not apply to it. White space there is not text.
-
-A clean, ordinary document therefore has no hidden flag and no
-`text.hidden` warning.
-
-These go to the `stored` part, which is not hidden as a whole (the
-renderers leave it out unless `RenderOptions.Stored`), each with
+What belongs to the file and is shown on no page goes to the `stored` part,
+which carries no reason (the renderers leave it out unless
+`RenderOptions.Stored`, the command's `-stored`), each block with
 `Attrs["stored"]`:
 
 | `stored` | What |
@@ -152,7 +131,7 @@ renderers leave it out unless `RenderOptions.Stored`), each with
 | `generator` | `\*\generator`, the program that wrote the file |
 | `document_variable` | `\*\docvar {name}{value}`, as `name: value`, with `Attrs["name"]` |
 | `custom_property` | `\*\userprops`: `\propname` and `\staticval`, as `name: value` |
-| `trailing_data` | text after the closing brace of the document, which no program shows; always flagged `invisible` |
+| `after_end` | text after the closing brace of the document. The part carries `input.trailing_data`, whose message gives the number of bytes after the brace. White space and NUL bytes alone there are not data |
 
 ## Warnings
 
@@ -167,7 +146,7 @@ Besides the shared codes (`limit.exceeded`, `part.no_text`,
 | `text.tracked_changes` | info | the document has insertions (`\revised`) or deletions (`\deleted`) |
 | `text.unmapped_glyphs` | warning | bytes in a code page that is not decoded, bytes their code page leaves undefined, unpaired surrogates |
 | `image.unsupported_encoding` | warning | with `ImagesData`, a picture in a format whose bytes cannot be given as a file (device-dependent bitmap, OS/2 metafile, no format named) |
-| `text.unshown_outlier` | warning | an item of routinely unshown data (field instruction, index entry, stored item) is out of proportion for its kind (`gofastcore.UnshownOutlier`); it is flagged `invisible` |
+| `input.trailing_data` | info | data follows the document's closing brace; the message gives how many bytes. Its text is in the stored part as `after_end`. On the document when there is no stored part to carry it |
 | `rtf.unread_content` | warning | content this version does not read: equations (`\mmath`) |
 | `rtf.control_characters_removed` | info | control characters with no meaning as text were removed |
 
@@ -196,18 +175,18 @@ size.
 - Equations (`\mmath`), the default text and help text of form fields,
   drawing objects other than text boxes and pictures, `\pmmetafile` data.
 - Bold, italic and other inline styles set only by a style are not given as
-  spans (the hidden-text properties of styles are read; see above).
+  spans (a style's `\v` is read; see above).
 
 ## The command
 
 ```
 go install github.com/AOShei/go-fast-rtf/cmd/gofastrtf@latest
 gofastrtf report.rtf                       # JSON
-gofastrtf -format markdown -exclude-hidden docs/
+gofastrtf -format markdown -exclude-display docs/
 ```
 
 `-images`, `-spans`, `-max-group-depth`, `-max-decoded-bytes`,
-`-max-text-bytes`, `-furniture`, `-quiet`, `-o`; `gofastrtf -h` lists them.
+`-max-text-bytes`, `-furniture`, `-stored`, `-exclude-display`, `-quiet`, `-o`; `gofastrtf -h` lists them.
 Messages go to standard error; the exit status is 1 if a file could not be
 read.
 
@@ -227,10 +206,14 @@ read.
 go test -short ./...
 go test -run XXX -fuzz FuzzExtract -fuzztime=20s .
 go test -run XXX -fuzz FuzzLexer -fuzztime=20s ./internal/token
+go test -run TestCorpus -v .                  # with the public corpus
+go test -run XXX -bench BenchmarkExtract .    # with the public corpus
 ```
 
-Every fixture is written by the tests themselves; there is no downloaded
-corpus.
+Every fixture is written by the tests themselves. `TestCorpus` and
+`BenchmarkExtract` read the series' public corpus (`GOFAST_CORPUS`, or
+`../.testdata/corpus`) and are skipped without it; no corpus file is in
+this repository.
 
 ## Licence
 

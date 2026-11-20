@@ -68,11 +68,24 @@ checked byte by byte against Python's codecs by the orchestrator.
    constant and code. Text after the closing brace is always flagged
    `invisible`. A corpus test runs over the public corpus.
 
+9. **Declared, not judged** (declared-not-judged branch, core 05bbddb,
+   schema 0.2) — Status: done. **Supersedes the hidden-text parts of
+   phases 4, 6, 7 and 8.** The library reports only what the file
+   declares: `hidden` for `\v` (direct or through `\s`/`\cs` styles and
+   `\sbasedon`); `no_ink`: none in RTF. Removed: `tiny`, `low_contrast`
+   (with colour table, `\cbpat`, `\clcbpat`, text-box fill and page
+   background reading), the invisible-character scan, the outlier rule,
+   `HiddenChecked`, `text.hidden`/`text.unshown_outlier`. Text after the
+   closing brace is stored `after_end` with `input.trailing_data`.
+   `\webhidden`, field instructions, index/TOC entries and deletions carry
+   no reason. See `DECLARED_REPORT_RTF.md` in the workspace root.
+
 ## Next, in order
 
 1. Equations (`\mmath`): at least their linear text as `formula` blocks.
-2. Table cell shading (`\clcbpat`) for the contrast check.
-3. Computing list numbers when `\listtext` is absent.
-4. Code pages 437, 850 and Johab (1361), from generated tables.
-5. A small corpus of RTF written by Word, LibreOffice and WordPad, made by
+2. Computing list numbers when `\listtext` is absent.
+3. Code pages 437, 850 and Johab (1361), from generated tables.
+4. A small corpus of RTF written by Word, LibreOffice and WordPad, made by
    the user, to compare against.
+5. If Andrew decides so: the shape property `fHidden` as `hidden` (open
+   question in the declared report).

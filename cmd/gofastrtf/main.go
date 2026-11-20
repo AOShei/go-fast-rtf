@@ -86,6 +86,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		furniture   = flags.Bool("furniture", false, "in Markdown and text, include running headers and footers")
 		stored      = flags.Bool("stored", false, "in Markdown and text, include the stored part (data the file keeps but shows nowhere: document variables, custom properties, the generator, data after the end)")
 		partMarkers = flags.Bool("part-markers", false, "in Markdown and text, put a line before each part saying which part it is")
+		children    = flags.Bool("children", true, "in Markdown and text, include embedded documents (attachments, members), each after a line naming it; -children=false leaves them out")
 	)
 	var exclude displayFlag
 	flags.Var(&exclude, "exclude-display", "in Markdown and text, leave out what the file declares not displayed: all of it, or with =reasons only those reasons (hidden, no_ink); JSON always has everything")
@@ -182,7 +183,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	w := bufio.NewWriter(out)
 	defer w.Flush()
-	render := &gofastcore.RenderOptions{Furniture: *furniture, Stored: *stored, PartMarkers: *partMarkers, ExcludeDisplay: exclude.reasons}
+	render := &gofastcore.RenderOptions{Furniture: *furniture, Stored: *stored, PartMarkers: *partMarkers, Children: *children, ExcludeDisplay: exclude.reasons}
 
 	written := 0
 	for _, path := range inputs {

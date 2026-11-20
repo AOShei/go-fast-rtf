@@ -3,7 +3,7 @@
 Module `github.com/AOShei/go-fast-rtf`, package `gofastrtf`. Extracts RTF
 (Microsoft RTF 1.9.1) into the go-fast-core model: one `body` part, and a
 `stored` part when the file holds data it never shows. Core pinned at
-031432a (v0.0.0-20261119191115-031432aa57b0).
+ebecf3c (v0.0.0-20261120130045-ebecf3cf2089).
 
 ## Layout
 
@@ -97,6 +97,13 @@ checked byte by byte against Python's codecs by the orchestrator.
    the usual RTF ones and every `\*` destination but `\htmltag`, so
    `\*\mhtmltag` too), `\line` as CRLF, and `\htmltag` content written
    even inside an `\htmlrtf` run.
+
+11. **Field codes as stored data** (stored-kinds branch, core ebecf3c).
+   Every field note (`\fldinst`, `\xe`, `\tc`, `\tcn`) carries
+   `Attrs["stored"] = field_code`, as go-fast-ooxml does, which core's
+   `Validate` requires; Markdown and text leave them out by default. The
+   command's `-stored[=kinds]` sets `Stored` or `StoredKinds` (core's
+   kinds plus `generator` and `custom_property`). Status: done, tested.
 
 ## Next, in order
 

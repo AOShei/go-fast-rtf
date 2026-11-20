@@ -55,19 +55,7 @@ type para struct {
 	ilvl    int32
 	itap    int32
 	intbl   bool
-	bdr     uint8 // sides with a border that has a style
-	bpend   uint8 // sides the border words being read are for
 }
-
-// Sides of a paragraph's border.
-const (
-	borderTop uint8 = 1 << iota
-	borderLeft
-	borderRight
-	borderBottom
-	borderBetween
-	borderBar
-)
 
 // dest says what kind of destination a group is, where that matters to
 // how its control words and text are read.

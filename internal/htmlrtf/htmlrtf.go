@@ -201,8 +201,13 @@ func Extract(ctx context.Context, src io.Reader, limit int64, maxDepth int) (Res
 					ok = emit('\r', '\n')
 				}
 			default:
-				if r, sp := special[t.Name]; sp && on {
-					ok = emitRune(emit, res.CodePage, r)
+				if r, sp := special[t.Name]; sp {
+					if !content() {
+						return res, nil
+					}
+					if on {
+						ok = emitRune(emit, res.CodePage, r)
+					}
 				}
 			}
 		case token.Symbol:
@@ -210,14 +215,17 @@ func Extract(ctx context.Context, src io.Reader, limit int64, maxDepth int) (Res
 				g.star = true
 				continue
 			}
+			switch t.Sym {
+			case '{', '}', '\\', '~', '_':
+				if !content() {
+					return res, nil
+				}
+			}
 			if !on {
 				continue
 			}
 			switch t.Sym {
 			case '{', '}', '\\':
-				if !content() {
-					return res, nil
-				}
 				ok = emit(t.Sym)
 			case '~':
 				ok = emitRune(emit, res.CodePage, 0xA0)

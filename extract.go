@@ -42,6 +42,11 @@ const (
 //	                          with no character in their code page
 //	text.hidden               text a reader cannot see; the blocks, spans
 //	                          and table cells concerned say why
+//	text.unshown_outlier      an item of routinely unshown data (a field
+//	                          instruction, an index entry, a stored item)
+//	                          is out of proportion for its kind, as
+//	                          gofastcore.UnshownOutlier decides; it is
+//	                          flagged invisible
 //	image.unsupported_encoding
 //	structure.heading_level_clamped
 const (
@@ -51,17 +56,7 @@ const (
 	// WarnControlCharsRemoved: control characters with no meaning as text
 	// were removed from extracted strings.
 	WarnControlCharsRemoved = reader.WarnControlCharsRemoved
-	// WarnUnshownOutlier: an item of the data RTF files routinely keep and
-	// never show (a field instruction, an index or table-of-contents entry,
-	// a document variable, a custom property, the generator, text after
-	// the document's end) holds more than OutlierWords words, which is out
-	// of proportion for its kind. That item alone is flagged invisible.
-	WarnUnshownOutlier = reader.WarnUnshownOutlier
 )
-
-// OutlierWords is how many words an item of routinely unshown data may
-// hold before it is flagged invisible with WarnUnshownOutlier.
-const OutlierWords = reader.OutlierWords
 
 // HiddenChecked is the set of hidden-text reasons this library checks
 // completely, recorded in every document's HiddenChecked.

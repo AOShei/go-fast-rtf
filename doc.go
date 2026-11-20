@@ -5,7 +5,9 @@
 // stores data it never shows (document variables, custom properties, the
 // name of the program that wrote it, text after the document's closing
 // brace), a stored part. Such routinely unshown data is not flagged
-// hidden, unless one item holds more than OutlierWords words.
+// hidden, unless one item is out of proportion for its kind
+// (gofastcore.UnshownOutlier). Text after the closing brace is always
+// flagged invisible: clean files have none.
 //
 //	doc, err := gofastrtf.Extract(ctx, f, size, nil)
 //	if err != nil {

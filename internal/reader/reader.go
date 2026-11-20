@@ -24,15 +24,11 @@ const (
 	// WarnControlCharsRemoved: control characters with no meaning as text
 	// were removed.
 	WarnControlCharsRemoved = "rtf.control_characters_removed"
-	// WarnUnshownOutlier: an item of data the file keeps and never shows
-	// (a field instruction, an index entry, a document variable, a custom
-	// property) holds more than OutlierWords words; it is flagged
-	// invisible.
-	WarnUnshownOutlier = "rtf.unshown_outlier"
 )
 
 func outlierMessage(n int, what string) string {
-	return fmt.Sprintf("%d %s of more than %d words, which the document does not show", n, what, OutlierWords)
+	return fmt.Sprintf("%d %s of more than %d words or %d characters, which the document does not show",
+		n, what, gofastcore.UnshownOutlierWords, gofastcore.UnshownOutlierChars)
 }
 
 // Checked is the set of hidden-text reasons this reader checks completely.
@@ -716,7 +712,7 @@ func (r *reader) finish() {
 			strconv.Itoa(r.inserted)+" insertions, "+strconv.Itoa(r.deleted)+" deletions; text is given with all changes accepted")
 	}
 	if r.outliers > 0 {
-		part.Warn(gofastcore.SeverityWarning, WarnUnshownOutlier, outlierMessage(r.outliers, "field instructions or index entries"))
+		part.Warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnshownOutlier, outlierMessage(r.outliers, "field instructions or index entries"))
 	}
 	if r.removed > 0 {
 		part.Warn(gofastcore.SeverityInfo, WarnControlCharsRemoved, strconv.Itoa(r.removed))
@@ -801,6 +797,10 @@ func (r *reader) add(b gofastcore.Block) {
 	r.part.Blocks = append(r.part.Blocks, b)
 }
 
+// storedTrailing is Attrs["stored"] of the text after the document's
+// closing brace.
+const storedTrailing = "trailing_data"
+
 // addStored appends a block to the stored part.
 func (r *reader) addStored(text, kind, name string) {
 	text = cleanText(text)
@@ -812,7 +812,12 @@ func (r *reader) addStored(text, kind, name string) {
 		attrs[gofastcore.AttrName] = name
 	}
 	b := gofastcore.Block{Kind: gofastcore.KindParagraph, Text: text, Attrs: attrs}
-	if isOutlier(text) {
+	switch {
+	case kind == storedTrailing:
+		// Clean files have nothing after the closing brace: it is a
+		// signal at any length, not an outlier of routine data.
+		b.Hidden = gofastcore.HiddenInvisible
+	case gofastcore.UnshownOutlier(text):
 		b.Hidden = gofastcore.HiddenInvisible
 		r.storeOutliers++
 	}
@@ -826,7 +831,7 @@ func (r *reader) addStored(text, kind, name string) {
 
 func (r *reader) storedPart() {
 	if r.trailing != nil {
-		r.addStored(r.trailing.String(), "trailing_data", "")
+		r.addStored(r.trailing.String(), storedTrailing, "")
 	}
 	if len(r.store.Blocks) == 0 {
 		return
@@ -839,7 +844,7 @@ func (r *reader) storedPart() {
 		return
 	}
 	if r.storeOutliers > 0 {
-		r.store.Warn(gofastcore.SeverityWarning, WarnUnshownOutlier, outlierMessage(r.storeOutliers, "stored items"))
+		r.store.Warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnshownOutlier, outlierMessage(r.storeOutliers, "stored items"))
 	}
 	r.store.MarkHidden()
 	r.doc.Parts = append(r.doc.Parts, *r.store)

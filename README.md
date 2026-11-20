@@ -119,9 +119,15 @@ would then tell nothing: field instructions, index and table-of-contents
 entries (`\xe`, `\tc`, `\tcn`, which become `note` blocks of type `field`
 after their paragraph, written as Word writes the field: `XE entry`,
 `TC entry`), document properties, and the stored part below. One such item
-that holds more than 30 words (`OutlierWords`) is out of proportion for its
-kind: that item alone is flagged `invisible`, and its part carries the
-warning `rtf.unshown_outlier`.
+that is out of proportion for its kind, as core's `UnshownOutlier` decides
+(more than 30 words, or more than 300 characters other than white space),
+is flagged `invisible`, that item alone, and its part carries the warning
+`text.unshown_outlier`. The words of an index or table-of-contents entry
+are counted without the `XE` or `TC` in front.
+
+Text after the document's closing brace is different: clean files never
+have any, so it is flagged `invisible` whatever its length, and the
+outlier rule does not apply to it. White space there is not text.
 
 A clean, ordinary document therefore has no hidden flag and no
 `text.hidden` warning.
@@ -135,7 +141,7 @@ renderers leave it out unless `RenderOptions.Stored`), each with
 | `generator` | `\*\generator`, the program that wrote the file |
 | `document_variable` | `\*\docvar {name}{value}`, as `name: value`, with `Attrs["name"]` |
 | `custom_property` | `\*\userprops`: `\propname` and `\staticval`, as `name: value` |
-| `trailing_data` | text after the closing brace of the document, which no program shows |
+| `trailing_data` | text after the closing brace of the document, which no program shows; always flagged `invisible` |
 
 ## Warnings
 
@@ -150,8 +156,8 @@ Besides the shared codes (`limit.exceeded`, `part.no_text`,
 | `text.tracked_changes` | info | the document has insertions (`\revised`) or deletions (`\deleted`) |
 | `text.unmapped_glyphs` | warning | bytes in a code page that is not decoded, bytes their code page leaves undefined, unpaired surrogates |
 | `image.unsupported_encoding` | warning | with `ImagesData`, a picture in a format whose bytes cannot be given as a file (device-dependent bitmap, OS/2 metafile, no format named) |
+| `text.unshown_outlier` | warning | an item of routinely unshown data (field instruction, index entry, stored item) is out of proportion for its kind (`gofastcore.UnshownOutlier`); it is flagged `invisible` |
 | `rtf.unread_content` | warning | content this version does not read: equations (`\mmath`) |
-| `rtf.unshown_outlier` | warning | an item of routinely unshown data (field instruction, index entry, stored item) holds more than 30 words; it is flagged `invisible` |
 | `rtf.control_characters_removed` | info | control characters with no meaning as text were removed |
 
 ## Limits

@@ -307,24 +307,6 @@ func (r *reader) openField(g *group) {
 	}
 }
 
-// OutlierWords is how many words an item of the data RTF files routinely
-// keep and never show (a field instruction, an index entry, a document
-// variable) may hold before it is out of proportion for its kind. Such
-// data is not flagged hidden, since nearly every file has some; an item
-// longer than this is flagged invisible, with WarnUnshownOutlier.
-const OutlierWords = 30
-
-// isOutlier reports whether unshown text is out of proportion.
-func isOutlier(text string) bool {
-	n := 0
-	for range strings.FieldsSeq(text) {
-		if n++; n > OutlierWords {
-			return true
-		}
-	}
-	return false
-}
-
 // unshownNote makes the note of a field instruction or an index or
 // table-of-contents entry: unflagged, unless it is an outlier. The words
 // counted are those of the instruction or of the entry, without the name
@@ -336,7 +318,7 @@ func (r *reader) unshownNote(text string) gofastcore.Block {
 func (r *reader) unshownNoteOf(text, counted string) gofastcore.Block {
 	b := gofastcore.Block{Kind: gofastcore.KindNote, Text: text,
 		Attrs: map[string]string{gofastcore.AttrNoteType: gofastcore.NoteField}}
-	if isOutlier(counted) {
+	if gofastcore.UnshownOutlier(counted) {
 		b.Hidden = gofastcore.HiddenInvisible
 		r.outliers++
 	}

@@ -62,6 +62,12 @@ checked byte by byte against Python's codecs by the orchestrator.
    `OutlierWords` (30) words is flagged invisible with
    `rtf.unshown_outlier`. A clean-document test asserts no flag at all.
 
+8. **Review 1** (review-1 branch, core 17a0e50) — Status: done.
+   Core's `UnshownOutlier` (30 words or 300 non-space characters) and its
+   `text.unshown_outlier` warning replace the library's own counter,
+   constant and code. Text after the closing brace is always flagged
+   `invisible`. A corpus test runs over the public corpus.
+
 ## Next, in order
 
 1. Equations (`\mmath`): at least their linear text as `formula` blocks.

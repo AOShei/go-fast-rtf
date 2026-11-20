@@ -139,6 +139,10 @@ func (d *Decoder) Byte(cp int, b byte, emit func(r rune, ok bool)) {
 					return
 				}
 			}
+			if r := userDefined(cp, d.leadByte, b); r != 0 {
+				emit(r, true)
+				return
+			}
 			emit(Unmapped, false)
 			return
 		}
@@ -182,7 +186,50 @@ func (d *Decoder) Byte(cp int, b byte, emit func(r rune, ok bool)) {
 			return
 		}
 	}
+	if cp == 932 && b == 0x80 {
+		// Windows and Python's cp932 read 0x80 alone as U+0080.
+		emit(0x80, true)
+		return
+	}
 	emit(Unmapped, false)
+}
+
+// userDefined returns the Private Use Area character Windows gives a
+// lead and trail byte in a user-defined area of code page 932 or 936,
+// which the tables leave out, or 0. Code pages 949 and 950 are not
+// mapped here.
+func userDefined(cp int, lead, trail byte) rune {
+	switch cp {
+	case 932:
+		// Lead bytes 0xF0-0xF9, trail bytes 0x40-0x7E and 0x80-0xFC
+		// (188 per lead byte), to U+E000-U+E757.
+		if lead < 0xF0 || lead > 0xF9 || trail < 0x40 || trail == 0x7F || trail > 0xFC {
+			return 0
+		}
+		off := rune(trail - 0x40)
+		if trail > 0x7F {
+			off--
+		}
+		return 0xE000 + rune(lead-0xF0)*188 + off
+	case 936:
+		switch {
+		case lead >= 0xAA && lead <= 0xAF && trail >= 0xA1 && trail <= 0xFE:
+			// 0xAAA1-0xAFFE, 94 per lead byte, to U+E000-U+E233.
+			return 0xE000 + rune(lead-0xAA)*94 + rune(trail-0xA1)
+		case lead >= 0xF8 && lead <= 0xFE && trail >= 0xA1 && trail <= 0xFE:
+			// 0xF8A1-0xFEFE, 94 per lead byte, to U+E234-U+E4C5.
+			return 0xE234 + rune(lead-0xF8)*94 + rune(trail-0xA1)
+		case lead >= 0xA1 && lead <= 0xA7 && trail >= 0x40 && trail <= 0xA0 && trail != 0x7F:
+			// 0xA140-0xA7A0, trail bytes 0x40-0x7E and 0x80-0xA0 (96 per
+			// lead byte), to U+E4C6-U+E765.
+			off := rune(trail - 0x40)
+			if trail > 0x7F {
+				off--
+			}
+			return 0xE4C6 + rune(lead-0xA1)*96 + off
+		}
+	}
+	return 0
 }
 
 // Flush ends a run of bytes: a lead byte with no trail byte, or an

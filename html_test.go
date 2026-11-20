@@ -144,3 +144,21 @@ func TestEncapsulatedFiles(t *testing.T) {
 		}
 	}
 }
+
+// emptyChild returns a document whose body part has no blocks.
+func emptyChild(ctx context.Context, name, mime string, r io.ReaderAt, size int64, o *gofastcore.Options) (*gofastcore.Document, error) {
+	d := gofastcore.New("html")
+	p := gofastcore.Part{Kind: gofastcore.PartBody, Number: 1}
+	p.Finish()
+	d.Parts = append(d.Parts, p)
+	return d, nil
+}
+
+func TestEncapsulatedEmptyChild(t *testing.T) {
+	// The HTML gives no blocks; the text of the RTF is kept.
+	src := `{\rtf1\ansi\fromhtml1 {\*\htmltag0 <html>}\htmlrtf Hidden text\par\htmlrtf0 {\*\htmltag0 </html>}}`
+	doc := extract(t, src, &gofastcore.Options{Child: emptyChild})
+	if len(doc.Parts[0].Blocks) != 1 || doc.Parts[0].Blocks[0].Text != "Hidden text" {
+		t.Errorf("blocks %+v", doc.Parts[0].Blocks)
+	}
+}

@@ -11,6 +11,14 @@
   with `Origin` `native` in place of the line's picture, as go-fast-ooxml
   reads Word's `o:hr`.
 
+## Unreleased: exported stored kinds
+
+- **Added:** `StoredGenerator`, `StoredCustomProperty` and `StoredKindNames`,
+  the `Attrs["stored"]` values this library writes beyond core's, for
+  commands that take `-stored=kinds` (go-fast-email's renders RTF
+  children). `TestStoredKindNamesComplete` checks the list against what
+  the library writes.
+
 ## Unreleased: field codes as stored data
 
 Built on go-fast-core `ebecf3c`.

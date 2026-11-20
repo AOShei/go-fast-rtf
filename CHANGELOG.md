@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased: user-defined areas of code pages 932 and 936
+
+- **Fixed:** code page 932 decodes byte 0x80 as U+0080 and its
+  user-defined area (lead bytes 0xF0 to 0xF9) as U+E000 to U+E757; code
+  page 936 decodes its three user-defined areas (0xAAA1 to 0xAFFE, 0xF8A1
+  to 0xFEFE, 0xA140 to 0xA7A0) as U+E000 to U+E765, as Windows does. These
+  were U+FFFD with `text.unmapped_glyphs` before. 949 and 950 unchanged.
+
 ## Unreleased: declared, not judged (breaking)
 
 Built on go-fast-core `787b056`, schema `0.2`.

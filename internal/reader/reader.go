@@ -24,7 +24,16 @@ const (
 	// WarnControlCharsRemoved: control characters with no meaning as text
 	// were removed.
 	WarnControlCharsRemoved = "rtf.control_characters_removed"
+	// WarnUnshownOutlier: an item of data the file keeps and never shows
+	// (a field instruction, an index entry, a document variable, a custom
+	// property) holds more than OutlierWords words; it is flagged
+	// invisible.
+	WarnUnshownOutlier = "rtf.unshown_outlier"
 )
+
+func outlierMessage(n int, what string) string {
+	return fmt.Sprintf("%d %s of more than %d words, which the document does not show", n, what, OutlierWords)
+}
 
 // Checked is the set of hidden-text reasons this reader checks completely.
 const Checked = gofastcore.HiddenInvisible | gofastcore.HiddenTiny | gofastcore.HiddenLowContrast | gofastcore.HiddenChars
@@ -47,7 +56,6 @@ type chr struct {
 	bold, italic, ul  bool
 	strike, sup, sub  bool
 	revDel, dttmDel   int32
-	forceHidden       bool // text of a destination that is never shown
 }
 
 // para holds the paragraph properties.
@@ -202,6 +210,9 @@ type reader struct {
 	docvars     [][2]string // text, name
 	userprops   [][2]string
 	unsupported int
+	// unshown items out of proportion for their kind, in the body and in
+	// the stored part
+	outliers, storeOutliers int
 
 	dec      codepage.Decoder
 	ucLeft   int32
@@ -248,7 +259,7 @@ func Read(ctx context.Context, src io.Reader, cfg Config) (*gofastcore.Document,
 		lex:       token.New(src),
 		doc:       gofastcore.New("rtf"),
 		part:      &gofastcore.Part{Kind: gofastcore.PartBody, Number: 1},
-		store:     &gofastcore.Part{Kind: gofastcore.PartStored, Number: 2, Hidden: gofastcore.HiddenInvisible},
+		store:     &gofastcore.Part{Kind: gofastcore.PartStored, Number: 2},
 		ansicpg:   1252,
 		fonts:     map[int32]font{},
 		styles:    map[int32]*style{},
@@ -704,6 +715,9 @@ func (r *reader) finish() {
 		part.Warn(gofastcore.SeverityInfo, gofastcore.WarnTextTrackedChanges,
 			strconv.Itoa(r.inserted)+" insertions, "+strconv.Itoa(r.deleted)+" deletions; text is given with all changes accepted")
 	}
+	if r.outliers > 0 {
+		part.Warn(gofastcore.SeverityWarning, WarnUnshownOutlier, outlierMessage(r.outliers, "field instructions or index entries"))
+	}
 	if r.removed > 0 {
 		part.Warn(gofastcore.SeverityInfo, WarnControlCharsRemoved, strconv.Itoa(r.removed))
 	}
@@ -798,6 +812,10 @@ func (r *reader) addStored(text, kind, name string) {
 		attrs[gofastcore.AttrName] = name
 	}
 	b := gofastcore.Block{Kind: gofastcore.KindParagraph, Text: text, Attrs: attrs}
+	if isOutlier(text) {
+		b.Hidden = gofastcore.HiddenInvisible
+		r.storeOutliers++
+	}
 	if !r.cfg.Text.Take(gofastcore.BlockCost + len(text) + len(name)) {
 		r.textCut = true
 		r.store.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, "the text limit was reached; the stored data is cut off there")
@@ -819,6 +837,9 @@ func (r *reader) storedPart() {
 	if m := r.opts.Limits.MaxParts; m > 0 && m < 2 {
 		r.doc.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, "the part limit was reached; the stored part is left out")
 		return
+	}
+	if r.storeOutliers > 0 {
+		r.store.Warn(gofastcore.SeverityWarning, WarnUnshownOutlier, outlierMessage(r.storeOutliers, "stored items"))
 	}
 	r.store.MarkHidden()
 	r.doc.Parts = append(r.doc.Parts, *r.store)

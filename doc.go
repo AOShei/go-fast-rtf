@@ -4,7 +4,8 @@
 // A document has one part, the body (part 1), and after it, when the file
 // stores data it never shows (document variables, custom properties, the
 // name of the program that wrote it, text after the document's closing
-// brace), a stored part flagged invisible.
+// brace), a stored part. Such routinely unshown data is not flagged
+// hidden, unless one item holds more than OutlierWords words.
 //
 //	doc, err := gofastrtf.Extract(ctx, f, size, nil)
 //	if err != nil {

@@ -55,6 +55,13 @@ checked byte by byte against Python's codecs by the orchestrator.
      `\highlight`, `\chcbpat`, `\fs`) set by paragraph and character styles,
      through `\sbasedon`.
 
+7. **Phase 3** (phase-3-hidden-signal branch, core 4de43b1) — Status: done.
+   The hidden flag is a signal of suspicious hiding only. Field
+   instructions, index/TOC entries (now `XE`/`TC` field notes) and the
+   stored part (no longer `Part.Hidden`) are unflagged; an item over
+   `OutlierWords` (30) words is flagged invisible with
+   `rtf.unshown_outlier`. A clean-document test asserts no flag at all.
+
 ## Next, in order
 
 1. Equations (`\mmath`): at least their linear text as `formula` blocks.

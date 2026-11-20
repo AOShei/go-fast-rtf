@@ -13,7 +13,7 @@ import (
 // properties p cannot be seen.
 func (r *reader) hiddenOf(c *chr, p *para) gofastcore.Hidden {
 	var h gofastcore.Hidden
-	if c.hidden || c.webHidden || c.forceHidden {
+	if c.hidden || c.webHidden {
 		h |= gofastcore.HiddenInvisible
 	}
 	if float64(c.fs)/2 < gofastcore.HiddenTinySize {
@@ -303,8 +303,66 @@ func (r *reader) openField(g *group) {
 		if top.flow == nil {
 			return
 		}
-		top.flow.after = append(top.flow.after, gofastcore.Block{Kind: gofastcore.KindNote, Text: code,
-			Hidden: gofastcore.HiddenInvisible, Attrs: map[string]string{gofastcore.AttrNoteType: gofastcore.NoteField}})
+		top.flow.after = append(top.flow.after, r.unshownNote(code))
+	}
+}
+
+// OutlierWords is how many words an item of the data RTF files routinely
+// keep and never show (a field instruction, an index entry, a document
+// variable) may hold before it is out of proportion for its kind. Such
+// data is not flagged hidden, since nearly every file has some; an item
+// longer than this is flagged invisible, with WarnUnshownOutlier.
+const OutlierWords = 30
+
+// isOutlier reports whether unshown text is out of proportion.
+func isOutlier(text string) bool {
+	n := 0
+	for range strings.FieldsSeq(text) {
+		if n++; n > OutlierWords {
+			return true
+		}
+	}
+	return false
+}
+
+// unshownNote makes the note of a field instruction or an index or
+// table-of-contents entry: unflagged, unless it is an outlier. The words
+// counted are those of the instruction or of the entry, without the name
+// of the field an entry stands for.
+func (r *reader) unshownNote(text string) gofastcore.Block {
+	return r.unshownNoteOf(text, text)
+}
+
+func (r *reader) unshownNoteOf(text, counted string) gofastcore.Block {
+	b := gofastcore.Block{Kind: gofastcore.KindNote, Text: text,
+		Attrs: map[string]string{gofastcore.AttrNoteType: gofastcore.NoteField}}
+	if isOutlier(counted) {
+		b.Hidden = gofastcore.HiddenInvisible
+		r.outliers++
+	}
+	return b
+}
+
+// entryWords are the destinations of index and table-of-contents entries,
+// with the name of the Word field each stands for.
+var entryWords = map[string]string{"xe": "XE", "tc": "TC", "tcn": "TC"}
+
+// openEntry reads an index or table-of-contents entry, which is not shown
+// where it stands. Its text becomes a field note after the paragraph, as
+// Word writes it, "XE entry".
+func (r *reader) openEntry(g *group, name string) {
+	if g.buf != nil {
+		return // an entry inside another destination's text
+	}
+	b := newBuf(maxFieldCode)
+	f := g.flow
+	g.buf = b
+	g.onClose = func() {
+		text := cleanText(strings.ReplaceAll(b.String(), "\n", " "))
+		if text == "" || f == nil {
+			return
+		}
+		f.after = append(f.after, r.unshownNoteOf(entryWords[name]+" "+text, text))
 	}
 }
 

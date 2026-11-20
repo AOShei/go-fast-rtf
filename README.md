@@ -50,7 +50,7 @@ never shows, a second part of kind `stored` follows it (see below);
 | `\footnote` | `footnote` after its paragraph, paragraphs joined by `\n`; `Marker` is its number (`\chftn`) in the document's format (`\ftnnar`, `\aftnnrlc`, ...): arabic for footnotes, lower-case roman for endnotes (`\ftnalt`) unless the document says otherwise |
 | `\annotation` with `\atnauthor`/`\atnid`, `\atndate` | `note` of type `comment`, with `author` and `date` |
 | `\deleted` | left out of the text and kept as a `note` of type `deletion` with `author` (`\revauthdel` and the revision table) and `date` (`\revdttmdel`); `text.tracked_changes` |
-| `\field` | the result (`\fldrslt`) is in the text; the instruction (`\fldinst`) is a `note` of type `field`, flagged `invisible`; a field nested in an instruction is written into it as `{ ... }` |
+| `\field` | the result (`\fldrslt`) is in the text; the instruction (`\fldinst`) is a `note` of type `field`, not flagged hidden unless it is an outlier (see Hidden text); a field nested in an instruction is written into it as `{ ... }` |
 | `HYPERLINK` field | with `Options.Spans`, a span with `Href` over the result (`\l` gives `#anchor`); in a table cell, `Table.Cells[].Href` |
 | `\pict` | `image` after its paragraph: `Image.ID` `pict-N`, MIME from `\pngblip`, `\jpegblip`, `\emfblip`, `\wmetafile`, `\macpict`, `\dibitmap`, `\wbitmap`; pixel size from the PNG or JPEG header, or `\picw`/`\pich` for bitmaps; alt text from `wzDescription` of `\picprop` or of the shape. `\nonshppict` and `\shprslt` (copies for old readers) are skipped |
 | `\shptxt` | the text of a text box: its blocks follow the paragraph the shape is in |
@@ -87,7 +87,7 @@ and always run; `Options.DeepHidden` changes nothing.
 
 | Reason | When |
 |---|---|
-| `invisible` | `\v` (hidden text), `\webhidden`; index and table-of-contents entries (`\xe`, `\tc`, `\tcn`), which are not shown where they stand; field instructions; everything in the stored part |
+| `invisible` | `\v` (hidden text), `\webhidden`; and an item of routinely unshown data that is out of proportion for its kind (below) |
 | `tiny` | `\fsN` below 2 points (N < 4), including `\fs0` |
 | `low_contrast` | the text colour (`\cf`) against what is behind it, judged with `gofastcore.LowContrast`: the first set of `\highlight`, `\chcbpat`, `\cb`, the paragraph's `\cbpat`, the page colour (the `fillColor` of `\*\background`), else white. Text in the automatic colour is never flagged |
 | `invisible_chars` | core's scan, on every block |
@@ -112,7 +112,22 @@ text covered by pictures, text inside pictures, and table cell shading.
 
 ### What the file stores and never shows
 
-These go to the `stored` part (flagged `invisible`), each with
+The flag marks a hiding mechanism applied to content that would otherwise be
+seen. Data that RTF files routinely keep and never show is extracted and
+bounded but **not** flagged, since nearly every file has some and the flag
+would then tell nothing: field instructions, index and table-of-contents
+entries (`\xe`, `\tc`, `\tcn`, which become `note` blocks of type `field`
+after their paragraph, written as Word writes the field: `XE entry`,
+`TC entry`), document properties, and the stored part below. One such item
+that holds more than 30 words (`OutlierWords`) is out of proportion for its
+kind: that item alone is flagged `invisible`, and its part carries the
+warning `rtf.unshown_outlier`.
+
+A clean, ordinary document therefore has no hidden flag and no
+`text.hidden` warning.
+
+These go to the `stored` part, which is not hidden as a whole (the
+renderers leave it out unless `RenderOptions.Stored`), each with
 `Attrs["stored"]`:
 
 | `stored` | What |
@@ -136,6 +151,7 @@ Besides the shared codes (`limit.exceeded`, `part.no_text`,
 | `text.unmapped_glyphs` | warning | bytes in a code page that is not decoded, bytes their code page leaves undefined, unpaired surrogates |
 | `image.unsupported_encoding` | warning | with `ImagesData`, a picture in a format whose bytes cannot be given as a file (device-dependent bitmap, OS/2 metafile, no format named) |
 | `rtf.unread_content` | warning | content this version does not read: equations (`\mmath`) |
+| `rtf.unshown_outlier` | warning | an item of routinely unshown data (field instruction, index entry, stored item) holds more than 30 words; it is flagged `invisible` |
 | `rtf.control_characters_removed` | info | control characters with no meaning as text were removed |
 
 ## Limits

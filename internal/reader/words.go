@@ -196,9 +196,8 @@ func (r *reader) word(t token.Token) {
 	case "pard":
 		g.p = defaultPara()
 	case "plain":
-		force := g.c.forceHidden
 		g.c = defaultChr()
-		g.c.font, g.c.forceHidden = r.deff, force
+		g.c.font = r.deff
 	case "par":
 		r.par(g)
 	case "sect", "page", "column":
@@ -322,10 +321,8 @@ func (r *reader) word(t token.Token) {
 		g.c.revDel = v
 	case "revdttmdel":
 		g.c.dttmDel = v
-	case "xe", "tc", "tcn", "txe", "rxe":
-		// Index and table-of-contents entries are never shown where
-		// they stand.
-		g.c.forceHidden = true
+	case "xe", "tc", "tcn":
+		r.openEntry(g, name)
 
 	// Notes.
 	case "footnote":
@@ -788,7 +785,6 @@ func (r *reader) noteFlow(g *group, kind flowKind) {
 		r.atnAuthor, r.atnID = "", ""
 	}
 	g.flow, g.buf, g.dest, g.p = f, nil, dBody, defaultPara()
-	g.c.forceHidden = false
 	g.onClose = func() { r.endNote(f, parent) }
 }
 

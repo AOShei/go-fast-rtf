@@ -13,6 +13,20 @@ import (
 	"github.com/AOShei/go-fast-rtf/internal/reader"
 )
 
+// Values of Attrs["stored"] this library writes beyond core's
+// gofastcore.Stored* values.
+const (
+	// StoredGenerator: the program that wrote the document (\generator).
+	StoredGenerator = "generator"
+	// StoredCustomProperty: a custom document property (\userprops),
+	// with its name in Attrs["name"].
+	StoredCustomProperty = "custom_property"
+)
+
+// StoredKindNames lists the Attrs["stored"] values this library writes
+// beyond core's gofastcore.StoredKindNames. Do not modify it.
+var StoredKindNames = []string{StoredGenerator, StoredCustomProperty}
+
 // Defaults for the limits of gofastcore.Options.Limits, used where a limit
 // is zero. A negative limit means no limit.
 const (

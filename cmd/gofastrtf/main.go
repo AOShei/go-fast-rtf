@@ -70,7 +70,7 @@ func (h *displayFlag) Set(v string) error {
 
 // storedKinds are the kinds of stored data -stored=kinds may name: core's,
 // and the two this library defines itself.
-var storedKinds = append(slices.Clone(gofastcore.StoredKindNames), "generator", "custom_property")
+var storedKinds = append(slices.Clone(gofastcore.StoredKindNames), gofastrtf.StoredKindNames...)
 
 // storedFlag is -stored: given alone it stands for every kind of stored
 // data, and with a value for the kinds named.

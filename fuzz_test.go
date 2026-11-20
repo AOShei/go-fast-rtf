@@ -27,6 +27,7 @@ func FuzzExtract(f *testing.F) {
 		wrap(`\pard A\par\pard\brdrb\brdrs\brdrw10 \par\pard\box\brdrs B\par\pard\brdrb\brdrs\page\par`),
 		`{\rtf1{\stylesheet{\s1\v\sbasedon2 a;}{\s2\cf1\sbasedon1 b;}{\*\cs3\fs1\sbasedon3 c;}}\pard\s1\cs3 x\par}`,
 		wrap(`\trowd\clcbpat1\cellx100\clcbpat2\cellx200\pard\intbl\cf2 a\cell\cf1 b\cell\row{\shp{\*\shpinst{\sp{\sn fillColor}{\sv 0}}{\sp{\sn fFilled}{\sv 1}}{\shptxt\cf2 t\par}}}{\*\do\dptxbx{\dptxbxtext x\par}}\par`),
+		wrap(`\pard a{\shpgrp{\*\shpinst{\sp{\sn fHidden}{\sv 1}}{\shp{\*\shpinst{\shptxt\trowd\cellx100\pard\intbl {\v b}c\cell\row d\par}{\sp{\sn fHidden}{\sv 0}}}}}}\par`) + "\r\n\x1a",
 	} {
 		f.Add([]byte(s))
 	}

@@ -14,7 +14,10 @@ import (
 // cannot be seen; fill is that of the text box the text is in, or nil.
 func (r *reader) hiddenOf(c *chr, p *para, cell int32, fill *rgb) gofastcore.Hidden {
 	var h gofastcore.Hidden
-	if c.hidden || c.webHidden {
+	// \webhidden hides text only in Web Layout and web pages; Word puts it
+	// on the page numbers of every table of contents. It is shown in the
+	// document, so it is not a reason.
+	if c.hidden {
 		h |= gofastcore.HiddenInvisible
 	}
 	if float64(c.fs)/2 < gofastcore.HiddenTinySize {

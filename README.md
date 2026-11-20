@@ -87,17 +87,21 @@ and always run; `Options.DeepHidden` changes nothing.
 
 | Reason | When |
 |---|---|
-| `invisible` | `\v` (hidden text), `\webhidden`; and an item of routinely unshown data that is out of proportion for its kind (below) |
+| `invisible` | `\v` (hidden text); and an item of routinely unshown data that is out of proportion for its kind (below) |
 | `tiny` | `\fsN` below 2 points (N < 4), including `\fs0` |
 | `low_contrast` | the text colour (`\cf`) against what is behind it, judged with `gofastcore.LowContrast`: the first set of `\highlight`, `\chcbpat`, `\cb`, the paragraph's `\cbpat`, the table cell's `\clcbpat`, the `fillColor` of the text box (white if it sets none; the page if `fFilled` is 0), the page colour (the `fillColor` of `\*\background`), else white. Text in the automatic colour is never flagged |
 | `invisible_chars` | core's scan, on every block |
 
 These properties count whether they are written on the run or set by a
 style: a paragraph style (`\sN`) or a character style (`\csN`) of the
-`\stylesheet`, followed through `\sbasedon`, that sets `\v`, `\webhidden`,
+`\stylesheet`, followed through `\sbasedon`, that sets `\v`,
 `\cf`, `\cb`, `\highlight`, `\chcbpat` or `\fs`. The style's properties are
 applied where `\s` or `\cs` stands; properties written after it win, and
 `\plain` resets them.
+
+`\webhidden` is not a reason: it hides text only in Web Layout and in web
+pages, and Word puts it on the tab and page number of every table of
+contents entry, which the document shows.
 
 In a table, a cell that holds hidden text is a `Table.Hidden` region with its
 reasons. A comment's or footnote's hidden passages are spans like a

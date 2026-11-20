@@ -189,6 +189,28 @@ func TestNestedTable(t *testing.T) {
 	}
 }
 
+// TestTOCWebHiddenUnflagged checks a table of contents as Word writes it:
+// the tab and page number of each entry are \webhidden, which hides them
+// only in Web Layout and in web pages. They are shown in the document and
+// are not flagged.
+func TestTOCWebHiddenUnflagged(t *testing.T) {
+	entry := func(id, title, page string) string {
+		return `\pard\plain\s20 {\field{\*\fldinst {HYPERLINK \\l "` + id + `"}}{\fldrslt {` + title + `}{\webhidden \tab }` +
+			`{\field{\*\fldinst {\webhidden  PAGEREF ` + id + ` \\h }}{\fldrslt {\webhidden ` + page + `}}}}}\par`
+	}
+	src := wrap(`{\field{\*\fldinst TOC \\o "1-3" \\h \\z \\u}{\fldrslt ` + entry("_Toc1", "Introduction", "1") +
+		entry("_Toc2", "Results", "4") + `}}\pard\plain\s1\outlinelevel0 Introduction\par`)
+	doc := extract(t, src, nil)
+	for p, b := range doc.AllBlocks() {
+		if b.Hidden != 0 {
+			t.Errorf("part %d: flagged %s: %q", p.Number, b.Hidden, b.Text)
+		}
+	}
+	if bs := blocks(doc); len(bs) < 3 || bs[0].Text != "Introduction\t1" {
+		t.Errorf("got %s", dump(doc))
+	}
+}
+
 func TestHidden(t *testing.T) {
 	src := wrap(`{\*\background{\shp{\*\shpinst{\sp{\sn fillColor}{\sv 16777215}}}}}` +
 		`\pard Visible {\v secret} text.\par` +
@@ -203,7 +225,7 @@ func TestHidden(t *testing.T) {
 	bs := blocks(doc)
 	want := []gofastcore.Hidden{
 		gofastcore.HiddenInvisible, gofastcore.HiddenLowContrast, gofastcore.HiddenLowContrast, 0, 0,
-		gofastcore.HiddenTiny, gofastcore.HiddenTiny, gofastcore.HiddenInvisible,
+		gofastcore.HiddenTiny, gofastcore.HiddenTiny, 0, // \webhidden is shown in the document
 	}
 	if len(bs) != len(want) {
 		t.Fatalf("got %s", dump(doc))

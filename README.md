@@ -56,6 +56,7 @@ never shows, a second part of kind `stored` follows it (see below);
 | `\shptxt`, `\dptxbxtext` | the text of a text box (of a shape, or of a Word 6/95 drawing object `\do`): its blocks follow the paragraph the shape is in |
 | `\object` | the object's `\result` is read as content; the embedded data (`\objdata`, an OLE 1.0 stream) is handed to `Options.Child`, unpacked from a `Package` to the file it packages; linked objects are listed, not read |
 | an empty paragraph whose only border is a bottom border with a style (`\brdrb\brdrs`, ...) | `thematic_break`, `Origin` `inferred`: RTF has no horizontal-rule control, and this is how a rule is drawn. Not when the paragraph before or after it has the same borders (a box), nor in table cells, headers, footers, notes or text boxes, nor for a paragraph that holds `\page` or `\sect`. A bordered paragraph with text, and a `* * *` paragraph, stay paragraphs |
+| `\fromhtml1` (HTML encapsulated by Outlook, [MS-OXRTFEX]) | the HTML is de-encapsulated (the `\*\htmltag` groups and the text outside `\htmlrtf` runs; `\par` and `\line` as CRLF, `\tab` as a tab, `\'hh` as that byte, `\uN` as UTF-8 under `\ansicpg65001` and as `&#N;` otherwise) and handed to `Options.Child` as `body.html`, `text/html; charset=` the WHATWG label of `\ansicpg`; it is the first of `Children`. When the child comes back extracted, the body gives no blocks (the HTML is the message; the RTF only repeats it); otherwise the RTF is read as usual. This library does not read HTML: the caller's `Options.Child` must, as go-fast-email's command does; `gofastrtf` does not, so it shows the RTF reading. `\fromtext` is read as RTF |
 | `\header*`, `\footer*` | `header`, `footer` blocks where they stand |
 | `\*\formfield` with `\*\ffl` | `note` of type `choices`, one value per line, `Attrs["field"]` from `\*\ffname`; it follows the paragraph |
 | `\*\bkmkstart` at the start of a paragraph | `Loc.Anchor` |
@@ -159,7 +160,7 @@ Besides the shared codes (`limit.exceeded`, `part.no_text`,
 |---|---|---|
 | `Limits.MaxInputBytes` | 1 GiB | the file; larger is `ErrLimitExceeded` |
 | `Limits.MaxTextBytes` | 256 MiB (core) | text of blocks, cells, markers and link targets, with `BlockCost` and `CellCost`, shared with embedded documents; the body is cut off at the limit with `limit.exceeded` |
-| `Limits.MaxDecodedBytes` | 1 GiB | picture bytes kept with `ImagesData` and embedded object data handed to `Options.Child`, shared with embedded documents; past it, pictures have no data and objects are listed, not read |
+| `Limits.MaxDecodedBytes` | 1 GiB | picture bytes kept with `ImagesData`, embedded object data and encapsulated HTML handed to `Options.Child`, shared with embedded documents; past it, pictures have no data and objects are listed, not read |
 | `Extractor.MaxGroupDepth` | 1024 | nesting of groups; deeper groups are not read, with `limit.exceeded` |
 | `Limits.MaxDepth` | 4 (core) | nesting of embedded documents |
 
@@ -211,6 +212,7 @@ read.
 | `extract.go` | `Extractor`, `Extract`, `ExtractFile`, warning codes, limits |
 | `internal/token` | the tokenizer |
 | `internal/codepage` | code page tables and decoder |
+| `internal/htmlrtf` | de-encapsulation of HTML (`\fromhtml1`) |
 | `internal/reader` | groups, destinations and the blocks they become |
 | `cmd/gofastrtf` | the command |
 

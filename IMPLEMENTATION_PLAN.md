@@ -70,7 +70,8 @@ checked byte by byte against Python's codecs by the orchestrator.
    checks (with colour table, `\cbpat`, `\clcbpat`, text-box fill and page
    background reading), the invisible-character scan, the proportion rule,
    `HiddenChecked` and their warnings (CHANGELOG.md lists them). Text after the
-   closing brace is stored `after_end` with `input.trailing_data`.
+   closing brace is stored `after_end` with `input.trailing_data`; white
+   space, NUL and `0x1A` alone are ignored, with no byte-count threshold.
    `\webhidden`, field instructions, index/TOC entries and deletions carry
    no reason. See `DECLARED_REPORT_RTF.md` in the workspace root.
    Follow-up decisions (2026-11-20, Andrew): a shape's `fHidden` set to

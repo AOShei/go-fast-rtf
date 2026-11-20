@@ -131,7 +131,7 @@ which carries no reason (the renderers leave it out unless
 | `generator` | `\*\generator`, the program that wrote the file |
 | `document_variable` | `\*\docvar {name}{value}`, as `name: value`, with `Attrs["name"]` |
 | `custom_property` | `\*\userprops`: `\propname` and `\staticval`, as `name: value` |
-| `after_end` | text after the closing brace of the document. The part carries `input.trailing_data`, whose message gives the number of bytes after the brace. White space and NUL bytes alone there are not data |
+| `after_end` | text after the closing brace of the document. The part carries `input.trailing_data`, whose message gives the number of bytes after the brace. White space, NUL bytes and `0x1A` (Ctrl-Z, the DOS end-of-file mark) alone there are not data: they give neither a block nor the warning. Any other byte counts, however few |
 
 ## Warnings
 

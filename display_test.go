@@ -234,6 +234,20 @@ func TestAfterEnd(t *testing.T) {
 	if len(clean.Parts) != 1 || len(clean.Warnings) != 0 {
 		t.Errorf("white space after the brace gave %s", dump(clean))
 	}
+	// Nor are NUL bytes and the DOS end-of-file mark, Ctrl-Z.
+	for _, tail := range []string{"\r\n\x1a", "\x1a", "\x00\x00", " \t\x1a\x00\r\n"} {
+		eof := extract(t, wrap(`\pard Body\par`)+tail, nil)
+		if len(eof.Parts) != 1 || len(eof.Warnings) != 0 || len(eof.Parts[0].Warnings) != 0 {
+			t.Errorf("%q after the brace gave %s", tail, dump(eof))
+		}
+	}
+	// Anything else counts, however little.
+	for _, tail := range []string{"\x1ax", "\r\n.\x1a"} {
+		one := extract(t, wrap(`\pard Body\par`)+tail, nil)
+		if len(one.Parts) != 2 || len(one.Parts[1].Warnings) != 1 || one.Parts[1].Warnings[0].Code != gofastcore.WarnInputTrailingData {
+			t.Errorf("%q after the brace gave %s", tail, dump(one))
+		}
+	}
 	// When the stored part is not given, the document carries the warning.
 	only := extract(t, wrap(`\pard Body\par`)+tail, &gofastcore.Options{Parts: gofastcore.PartRange{First: 1, Last: 1}})
 	if len(only.Parts) != 1 || len(only.Warnings) != 1 || only.Warnings[0].Code != gofastcore.WarnInputTrailingData {

@@ -430,13 +430,16 @@ func (r *reader) skipGroup() {
 }
 
 // afterEnd reads what follows the closing brace of the document. Its text
-// is kept in the stored part, as after_end. Anything other than white
-// space and NUL bytes there is trailing data, for the warning.
+// is kept in the stored part, as after_end, with the warning
+// input.trailing_data. Only white space, NUL bytes and 0x1A (Ctrl-Z, the
+// DOS end-of-file mark) are ignored: when nothing else follows the brace
+// there is neither a stored block nor a warning. There is no threshold on
+// how much else may follow; any other byte counts.
 func (r *reader) afterEnd(t token.Token) {
 	switch t.Kind {
 	case token.Text:
 		for _, b := range t.Data {
-			if b != ' ' && b != '\t' && b != 0 {
+			if b != ' ' && b != '\t' && b != '\r' && b != '\n' && b != 0 && b != 0x1A {
 				r.trailingData = true
 				break
 			}
@@ -818,7 +821,7 @@ func (r *reader) addStored(text, kind, name string) {
 }
 
 func (r *reader) storedPart() {
-	if r.trailing != nil {
+	if r.trailing != nil && r.trailingData {
 		r.addStored(r.trailing.String(), gofastcore.StoredAfterEnd, "")
 	}
 	// Data after the closing brace is stated in a warning on the stored

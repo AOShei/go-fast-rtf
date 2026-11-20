@@ -24,7 +24,8 @@ no longer judges whether text can be seen.
 - **Changed:** text after the document's closing brace is in the stored
   part with `Attrs["stored"] = "after_end"` (formerly `trailing_data`,
   flagged), with no reason, and the stored part carries
-  `input.trailing_data` with the number of bytes after the brace.
+  `input.trailing_data` with the number of bytes after the brace. White
+  space, NUL bytes and `0x1A` (Ctrl-Z) alone after the brace give neither.
 - **Command:** `-exclude-hidden` is now `-exclude-display`; `-stored`
   includes the stored part in Markdown and text. The render flags follow
   the series' `COMMAND_FLAGS.md`: `-part-markers` is new, and

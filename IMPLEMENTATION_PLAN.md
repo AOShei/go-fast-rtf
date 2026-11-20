@@ -52,9 +52,12 @@ checked byte by byte against Python's codecs by the orchestrator.
      tabled: 932 byte 0x80 to U+0080 and leads 0xF0-0xF9 to
      U+E000-U+E757; 936's three areas to U+E000-U+E765, as Windows does.
      949 and 950 unchanged. Boundaries in `internal/codepage/uda_test.go`.
-   - Thematic breaks (core df335f0): an empty body paragraph whose only
-     border is a styled bottom border, not next to a paragraph with the same
-     borders, not holding `\page`/`\sect`; `Origin` inferred.
+   - Thematic breaks (core df335f0) were inferred from an empty paragraph
+     with a styled bottom border; removed on branch `no-inferred-break`
+     (no inferred breaks: a border is not a declared break). Paragraph
+     borders are no longer read. The declared rule, Word's horizontal-line
+     shape (`fHorizRule`, on a shape or in a picture's `\picprop`), gives a
+     native `thematic_break` (`TestHorizontalRule`).
    - Character properties set by paragraph and character styles, through
      `\sbasedon` (only `\v` is read now; see phase 9).
 

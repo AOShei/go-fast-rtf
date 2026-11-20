@@ -534,53 +534,41 @@ func TestDrawingObjectTextBox(t *testing.T) {
 	}
 }
 
-func TestThematicBreaks(t *testing.T) {
-	const rule = `\pard\brdrb\brdrs\brdrw10\brsp20 \par`
-	kinds := func(doc *gofastcore.Document) string {
-		var out []string
+// An empty paragraph with only a bottom border is a border, not a declared
+// break: it gives no block, as any empty paragraph.
+func TestBorderedEmptyParagraph(t *testing.T) {
+	doc := extract(t, wrap(`\pard One\par\pard\brdrb\brdrs\brdrw10\brsp20 \par\pard Two\par`), nil)
+	var got []string
+	for _, b := range blocks(doc) {
+		got = append(got, b.Kind.String()+":"+b.Text)
+	}
+	if s := strings.Join(got, " "); s != "paragraph:One paragraph:Two" {
+		t.Errorf("got %q", s)
+	}
+}
+
+// Word's horizontal line (fHorizRule) declares a thematic break: inline,
+// in a picture's \picprop, or on a floating shape; not when it is 0.
+func TestHorizontalRule(t *testing.T) {
+	inline := `{\*\shppict{\pict{\*\picprop\shplid1025{\sp{\sn shapeType}{\sv 1}}{\sp{\sn fHorizRule}{\sv 1}}{\sp{\sn fStandardHR}{\sv 1}}}\picscalex100\wmetafile8\picw100\pich100 0100}}{\nonshppict{\pict\wmetafile8\picw100\pich100 0100}}`
+	shape := `{\shp{\*\shpinst\shpleft0\shptop0\shpright100\shpbottom10{\sp{\sn shapeType}{\sv 1}}{\sp{\sn fHorizRule}{\sv 1}}{\sp{\sn pib}{\sv {\pict\pngblip\picw10\pich1 89504e47}}}}}`
+	off := strings.Replace(shape, `{\sv 1}}{\sp{\sn pib}`, `{\sv 0}}{\sp{\sn pib}`, 1)
+	for name, c := range map[string]struct{ src, want string }{
+		"inline":    {inline, "paragraph:One thematic_break: paragraph:Two"},
+		"shape":     {shape, "paragraph:One thematic_break: paragraph:Two"},
+		"shape off": {off, "paragraph:One image: paragraph:Two"},
+	} {
+		doc := extract(t, wrap(`\pard One\par\pard `+c.src+`\par\pard Two\par`), nil)
+		var got []string
 		for _, b := range blocks(doc) {
-			s := b.Kind.String()
-			if b.Kind == gofastcore.KindThematicBreak && b.Origin != gofastcore.OriginInferred {
-				s += "(native)"
+			got = append(got, b.Kind.String()+":"+b.Text)
+			if b.Kind == gofastcore.KindThematicBreak && b.Origin != gofastcore.OriginNative {
+				t.Errorf("%s: break origin %v", name, b.Origin)
 			}
-			if b.Text != "" {
-				s += ":" + b.Text
-			}
-			out = append(out, s)
 		}
-		return strings.Join(out, " ")
-	}
-	cases := []struct{ name, body, want string }{
-		{"rule", `\pard One\par` + rule + `\pard Two\par`, "paragraph:One thematic_break paragraph:Two"},
-		{"rule at end", `\pard One\par` + rule, "paragraph:One thematic_break"},
-		{"rule in a group", `\pard One\par{\pard\plain\brdrb\brdrdb\brdrw15 \par}\pard Two\par`, "paragraph:One thematic_break paragraph:Two"},
-		{"rule before a table", `\pard One\par` + rule + `\trowd\cellx1000\pard\intbl a\cell\row\pard Two\par`, "paragraph:One thematic_break table paragraph:Two"},
-		{"border with text", `\pard\brdrb\brdrs Ruled heading\par\pard Two\par`, "paragraph:Ruled heading paragraph:Two"},
-		{"no style", `\pard One\par\pard\brdrb\brdrw10 \par\pard Two\par`, "paragraph:One paragraph:Two"},
-		{"none", `\pard One\par\pard\brdrb\brdrnone \par\pard Two\par`, "paragraph:One paragraph:Two"},
-		{"top too", `\pard One\par\pard\brdrt\brdrs\brdrb\brdrs \par\pard Two\par`, "paragraph:One paragraph:Two"},
-		{"box", `\pard\box\brdrs One\par\pard\box\brdrs \par`, "paragraph:One"},
-		{"box of bottoms after", `\pard One\par` + rule + `\pard\brdrb\brdrs Boxed\par`, "paragraph:One paragraph:Boxed"},
-		{"box of bottoms before", `\pard\brdrb\brdrs Boxed\par` + rule + `\pard Two\par`, "paragraph:Boxed paragraph:Two"},
-		{"two rules", `\pard One\par` + rule + rule + `\pard Two\par`, "paragraph:One paragraph:Two"},
-		{"cell borders", `\pard One\par\trowd\clbrdrb\brdrs\cellx1000\pard\intbl a\cell\row\pard \par\pard Two\par`, "paragraph:One table paragraph:Two"},
-		{"in a cell", `\trowd\cellx1000\pard\intbl\brdrb\brdrs \cell\pard\intbl x\cell\row\pard Two\par`, "table paragraph:Two"},
-		{"page break", `\pard One\par\pard\brdrb\brdrs\page\par\pard Two\par`, "paragraph:One paragraph:Two"},
-		{"section break", `\pard One\par\pard\brdrb\brdrs\sect\par\pard Two\par`, "paragraph:One paragraph:Two"},
-		{"asterisks", `\pard One\par\pard\qc * * *\par\pard Two\par`, "paragraph:One paragraph:* * * paragraph:Two"},
-		{"header", `{\header\pard\brdrb\brdrs \par\pard Head\par}\pard Two\par`, "header:Head paragraph:Two"},
-		{"footnote", `\pard Two{\footnote\pard\brdrb\brdrs \par\pard Note\par}\par`, "paragraph:Two footnote:Note"},
-		{"list item", `\pard\ls1\brdrb\brdrs \par\pard Two\par`, "paragraph:Two"},
-	}
-	for _, c := range cases {
-		doc := extract(t, wrap(c.body), nil)
-		if got := kinds(doc); got != c.want {
-			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		if s := strings.Join(got, " "); s != c.want {
+			t.Errorf("%s: got %q, want %q", name, s, c.want)
 		}
-	}
-	doc := extract(t, wrap(`\pard One\par`+rule+`\pard Two\par`), nil)
-	if md := doc.Markdown(); !strings.Contains(md, "---") {
-		t.Errorf("markdown %q", md)
 	}
 }
 

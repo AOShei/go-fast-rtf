@@ -108,11 +108,6 @@ func (r *reader) word(t token.Token) {
 		}
 	}
 
-	if name == "box" || strings.Contains(name, "brdr") {
-		borderWord(&g.p, name)
-		return
-	}
-
 	switch name {
 	// The document.
 	case "ansi":
@@ -197,7 +192,6 @@ func (r *reader) word(t token.Token) {
 			if len(g.flow.text) > 0 {
 				g.flow.endPara(g.p)
 			}
-			g.flow.pageBreak = true
 		}
 	case "s":
 		g.p.style = v
@@ -467,40 +461,6 @@ func (r *reader) openFormField(g *group) {
 			b.Attrs[gofastcore.AttrField] = ff.name
 		}
 		r.deliver(r.top().flow, b)
-	}
-}
-
-// borderWord reads a control word about borders. A side word (\brdrb,
-// \box) says which sides the words after it are for; a style word
-// (\brdrs, \brdrdb, ...) gives those sides a border, \brdrnone and
-// \brdrnil take it away. The border words of cells, rows, pages and
-// characters (\clbrdrb, \trbrdrb, \pgbrdrb, \chbrdr) end a paragraph's
-// border words, so the style words after them are not the paragraph's.
-func borderWord(p *para, name string) {
-	switch name {
-	case "brdrt":
-		p.bpend = borderTop
-	case "brdrl":
-		p.bpend = borderLeft
-	case "brdrr":
-		p.bpend = borderRight
-	case "brdrb":
-		p.bpend = borderBottom
-	case "brdrbtw":
-		p.bpend = borderBetween
-	case "brdrbar":
-		p.bpend = borderBar
-	case "box":
-		p.bpend = borderTop | borderLeft | borderRight | borderBottom
-	case "brdrnone", "brdrnil":
-		p.bdr &^= p.bpend
-	case "brdrw", "brdrcf", "brdrart", "brdrfr":
-	default:
-		if !strings.HasPrefix(name, "brdr") {
-			p.bpend = 0
-			return
-		}
-		p.bdr |= p.bpend
 	}
 }
 

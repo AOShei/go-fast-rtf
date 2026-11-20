@@ -15,6 +15,7 @@ type shape struct {
 	prev   *shape
 	alt    string
 	hidden bool // fHidden: the shape declares itself hidden
+	hrule  bool // fHorizRule: the shape is Word's horizontal line
 	images []gofastcore.Block
 	boxed  []boxed // the blocks of its text box (\shptxt), and of shapes in it
 }
@@ -48,9 +49,14 @@ func (r *reader) openShape(g *group) {
 				r.add(s.boxed[i].b)
 			}
 		}
+		if s.hrule {
+			// Word's horizontal line declares a break; its picture is
+			// only how the line is drawn.
+			s.images = []gofastcore.Block{{Kind: gofastcore.KindThematicBreak}}
+		}
 		top := r.top()
 		for _, b := range s.images {
-			if b.Text == "" && s.alt != "" {
+			if b.Kind == gofastcore.KindImage && b.Text == "" && s.alt != "" {
 				b.Text = s.alt
 			}
 			if s.hidden {
@@ -124,6 +130,17 @@ func (r *reader) shapeProp(name, value string) {
 		// A boolean: 0 is false, anything else true; the last one counts.
 		n, err := strconv.Atoi(value)
 		r.shape.hidden = err == nil && n != 0
+	case name == "fHorizRule":
+		// Word's horizontal line (Format, Borders and Shading, Horizontal
+		// Line; also Word's reading of HTML <hr>): on a shape, or on an
+		// inline picture's \picprop. It declares a thematic break.
+		n, err := strconv.Atoi(value)
+		on := err == nil && n != 0
+		if r.pict != nil {
+			r.pict.hrule = on
+		} else if r.shape != nil {
+			r.shape.hrule = on
+		}
 	}
 }
 
@@ -141,6 +158,7 @@ type pict struct {
 	odd    bool
 	alt    string
 	cut    bool // the data was more than could be kept
+	hrule  bool // fHorizRule in its \picprop: Word's horizontal line
 }
 
 // sniffBytes is how much of a picture is kept, when its data is not
@@ -250,6 +268,16 @@ var pictMIME = map[string]string{
 }
 
 func (r *reader) endPict(p *pict) {
+	if p.hrule {
+		b := gofastcore.Block{Kind: gofastcore.KindThematicBreak}
+		if r.shape != nil {
+			r.holdBlock(&b)
+			r.shape.images = append(r.shape.images, b)
+			return
+		}
+		r.deliver(r.top().flow, b)
+		return
+	}
 	r.sawImage = true
 	if r.opts.Images == gofastcore.ImagesNone {
 		return

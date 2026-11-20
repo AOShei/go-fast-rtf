@@ -12,6 +12,7 @@ Module `github.com/AOShei/go-fast-rtf`, package `gofastrtf`. Extracts RTF
 | `extract.go`, `doc.go` | Public API: `Extractor`, `Extract`, `ExtractFile`, warning codes |
 | `internal/token` | Tokenizer: groups, control words/symbols, text, `\'hh`, bounded `\binN` |
 | `internal/codepage` | Single-byte code page tables (1250-1258, 874, 10000) and decoder with DBCS lead-byte handling |
+| `internal/htmlrtf` | De-encapsulation of HTML from `\fromhtml1` documents ([MS-OXRTFEX]) |
 | `internal/reader` | The group/destination state machine that builds the document |
 | `cmd/gofastrtf` | CLI printing JSON, Markdown or text |
 
@@ -83,6 +84,19 @@ checked byte by byte against Python's codecs by the orchestrator.
    series' render flags (`COMMAND_FLAGS.md`), with `-part-markers`, and `-children` (default
    true, core's `RenderOptions.Children`, added with core 787b056) prints
    embedded documents in Markdown and text.
+
+10. **Encapsulated HTML** (htmlrtf branch) — Status: done. A document
+   declaring `\fromhtml1` is de-encapsulated per [MS-OXRTFEX]
+   (`internal/htmlrtf`, a pass before the RTF reading that stops at the
+   first content of other documents) and the HTML handed to
+   `Options.Child` as `body.html`; when that child is extracted the body
+   gives no blocks, otherwise the RTF reading stands. The HTML counts
+   against the decode budget; past it the child is listed only. Decided by
+   Andrew's orchestrator; `\fromtext` stays read as RTF. Details of the
+   spec to check: which destinations a de-encapsulating reader skips (here
+   the usual RTF ones and every `\*` destination but `\htmltag`, so
+   `\*\mhtmltag` too), `\line` as CRLF, and `\htmltag` content written
+   even inside an `\htmlrtf` run.
 
 ## Next, in order
 

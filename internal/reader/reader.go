@@ -32,6 +32,9 @@ type Config struct {
 	MaxGroupDepth int // groups nested deeper are skipped
 	Decode        *gofastcore.DecodeBudget
 	Text          *gofastcore.TextBudget
+	// DropBody: the body gives no blocks, because the document's content
+	// was read another way (the HTML it encapsulates).
+	DropBody bool
 }
 
 // chr holds the character properties.
@@ -501,6 +504,9 @@ func (r *reader) text(data []byte) {
 			return
 		}
 	}
+	if r.dropped(g) {
+		return
+	}
 	if r.ucLeft > 0 {
 		n := min(int(r.ucLeft), len(data))
 		r.ucLeft -= int32(n)
@@ -533,11 +539,20 @@ func (r *reader) emitDecoded(cp int) func(rune, bool) {
 	}
 }
 
+// dropped says that text read in g is not kept: the body gives no
+// blocks, and g is body text.
+func (r *reader) dropped(g *group) bool {
+	return r.cfg.DropBody && g.buf == nil && g.dest == dBody
+}
+
 // hex reads \'hh.
 func (r *reader) hex(b byte) {
 	g := r.top()
 	switch g.dest {
 	case dPict, dObjData, dColorTbl, dFontTbl, dListTable, dListOverrideTable, dWords:
+		return
+	}
+	if r.dropped(g) {
 		return
 	}
 	if r.ucLeft > 0 {
@@ -599,7 +614,7 @@ func (r *reader) put1(c rune) {
 		g.buf.addRune(c)
 		return
 	}
-	if g.flow == nil || g.dest != dBody {
+	if g.flow == nil || g.dest != dBody || r.cfg.DropBody {
 		return
 	}
 	g.flow.add(c, g)
@@ -776,7 +791,7 @@ func (r *reader) holdBlock(b *gofastcore.Block) bool {
 // add appends a finished block to the body part, taking its cost from the
 // text budget.
 func (r *reader) add(b gofastcore.Block) {
-	if r.textCut {
+	if r.textCut || r.cfg.DropBody {
 		return
 	}
 	cost := gofastcore.BlockCost + len(b.Text) + len(b.Marker)

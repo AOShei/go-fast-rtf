@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased: encapsulated HTML
+
+- **Added:** a document that declares `\fromhtml1` (HTML mail as Outlook
+  stores it, [MS-OXRTFEX]) has its HTML de-encapsulated and handed to
+  `Options.Child` as `body.html`, `text/html; charset=<WHATWG label of
+  \ansicpg>`, first in `Children`. When the child is extracted, the body
+  gives no blocks; otherwise (no `Options.Child`, or it does not read
+  HTML) the RTF is read as before. The `\htmlrtf` runs no longer reach
+  the output then, nor the `text.unmapped_glyphs` they raised (the
+  `\'a0` bytes under `\ansicpg65001` in Outlook's files). The HTML counts
+  against `Limits.MaxDecodedBytes`. `gofastrtf` reads no HTML: its
+  body is the RTF reading as before, and `body.html` is listed as a child
+  that was not read.
+
 ## Unreleased: user-defined areas of code pages 932 and 936
 
 - **Fixed:** code page 932 decodes byte 0x80 as U+0080 and its

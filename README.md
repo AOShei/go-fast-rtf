@@ -171,7 +171,8 @@ Besides the shared codes (`limit.exceeded`, `part.no_text`,
 | `Limits.MaxDepth` | 4 (core) | nesting of embedded documents |
 
 Smaller fixed bounds: a field instruction holds 32 KiB, a metadata item
-64 KiB, a document variable's value 64 KiB, the text after the document's end
+64 KiB, a document variable's value 64 KiB, 16,384 document variables and
+as many custom properties, the text after the document's end
 1 MiB; a table has at most 1,048,576 rows and a row definition 4096 cells.
 Without `ImagesData`, at most 64 KiB of a picture is decoded, to read its
 size.

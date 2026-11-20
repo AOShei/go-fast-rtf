@@ -29,6 +29,23 @@ func TestTableCutAtBudget(t *testing.T) {
 	}
 }
 
+// TestCustomPropertiesBounded checks that a run of empty \propname words
+// does not allocate a property for each.
+func TestCustomPropertiesBounded(t *testing.T) {
+	if testing.Short() {
+		t.Skip("allocates a few megabytes of input")
+	}
+	src := wrap(`{\*\userprops` + strings.Repeat(`\propname`, 1_000_000) + `}\pard Body\par`)
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	extract(t, src, nil)
+	runtime.ReadMemStats(&after)
+	if got := after.TotalAlloc - before.TotalAlloc; got > 48<<20 {
+		t.Errorf("allocated %d MB for %d KB of input", got>>20, len(src)>>10)
+	}
+}
+
 // TestHeldBlocksBounded checks that blocks held back until their
 // paragraph ends (field notes, here) are bounded by the text budget while
 // they are read, not only when the paragraph is finished: a paragraph of

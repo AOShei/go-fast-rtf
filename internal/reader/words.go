@@ -171,7 +171,7 @@ func (r *reader) word(t token.Token) {
 	case "userprops":
 		r.userProps(g)
 	case "propname":
-		if g.dest == dUserProps {
+		if g.dest == dUserProps && len(r.props)+len(r.userprops) < maxStoredItems {
 			r.props = append(r.props, [2]*strbuf{newBuf(1024), newBuf(1 << 16)})
 			g.buf = r.props[len(r.props)-1][0]
 		}
@@ -846,11 +846,15 @@ func (r *reader) docVar(g *group) {
 		case n == "":
 			text = v
 		}
-		if len(r.docvars) < 1<<14 {
+		if len(r.docvars) < maxStoredItems {
 			r.docvars = append(r.docvars, [2]string{text, n})
 		}
 	}
 }
+
+// maxStoredItems bounds the document variables, and the custom
+// properties, that are kept.
+const maxStoredItems = 1 << 14
 
 func (r *reader) userProps(g *group) {
 	g.dest, g.buf = dUserProps, nil
@@ -865,7 +869,9 @@ func (r *reader) userProps(g *group) {
 			if v == "" {
 				text = n
 			}
-			r.userprops = append(r.userprops, [2]string{text, n})
+			if len(r.userprops) < maxStoredItems {
+				r.userprops = append(r.userprops, [2]string{text, n})
+			}
 		}
 		r.props = r.props[:0]
 	}

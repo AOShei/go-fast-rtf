@@ -235,9 +235,14 @@ type reader struct {
 	sawImage          bool
 	pictN             int
 	textCut, decCut   bool
-	depthCut          bool
-	repaired          string
-	delivered         map[string]bool
+	// held is the cost of the blocks and table rows read but not yet
+	// added, since the last paragraph of the body ended; stop is set when
+	// it would not fit the text budget, and reading ends there.
+	held      int
+	stop      bool
+	depthCut  bool
+	repaired  string
+	delivered map[string]bool
 
 	// metadata being read
 	info      map[string]*strbuf
@@ -289,7 +294,7 @@ func (r *reader) top() *group { return &r.stack[len(r.stack)-1] }
 
 func (r *reader) run() error {
 	n := 0
-	for !r.textCut {
+	for !r.textCut && !r.stop {
 		if n++; n&4095 == 0 {
 			if err := r.ctx.Err(); err != nil {
 				return err
@@ -333,7 +338,7 @@ func (r *reader) run() error {
 	if err := r.lex.Err(); err != nil && r.lex.Read == 0 {
 		return err
 	}
-	if !r.ended && !r.textCut {
+	if !r.ended && !r.textCut && !r.stop {
 		depth := len(r.stack) + r.skip
 		r.repaired = fmt.Sprintf("the file ends inside %d groups; it was read as far as it goes", depth)
 		r.skip = 0
@@ -690,7 +695,7 @@ func (r *reader) finish() {
 	if r.repaired != "" {
 		r.doc.Warn(gofastcore.SeverityInfo, gofastcore.WarnInputRepaired, r.repaired)
 	}
-	if r.textCut {
+	if r.textCut || r.stop {
 		part.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, "the text limit was reached; the document is cut off there")
 	}
 	if r.decCut {
@@ -768,6 +773,24 @@ func (r *reader) unmappedWarnings(part *gofastcore.Part) {
 		}
 		part.Warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, msg)
 	}
+}
+
+// hold counts the cost of a block or table row that is kept until its
+// paragraph or table ends, and reports whether it fits what is left of the
+// text budget. When it does not, reading stops: what is held is added as
+// far as the budget goes.
+func (r *reader) hold(cost int) bool {
+	if int64(r.held+cost+gofastcore.BlockCost) > r.cfg.Text.Left() {
+		r.stop = true
+		return false
+	}
+	r.held += cost
+	return true
+}
+
+// holdBlock is hold for a block.
+func (r *reader) holdBlock(b *gofastcore.Block) bool {
+	return r.hold(gofastcore.BlockCost + len(b.Text) + len(b.Marker))
 }
 
 // add appends a finished block to the body part, taking its cost from the

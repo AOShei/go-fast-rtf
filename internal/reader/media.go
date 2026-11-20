@@ -40,6 +40,7 @@ func (r *reader) openShape(g *group) {
 // deliver puts a block after the paragraph being read in flow f.
 func (r *reader) deliver(f *flow, b gofastcore.Block) {
 	if f != nil {
+		r.holdBlock(&b)
 		f.after = append(f.after, b)
 		return
 	}
@@ -229,6 +230,7 @@ func (r *reader) endPict(p *pict) {
 	}
 	b := gofastcore.Block{Kind: gofastcore.KindImage, Text: cleanText(p.alt), Image: img}
 	if r.shape != nil {
+		r.holdBlock(&b)
 		r.shape.images = append(r.shape.images, b)
 		return
 	}

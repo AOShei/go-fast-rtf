@@ -158,7 +158,9 @@ func (f *flow) flushDel() {
 	if f.delDate != "" {
 		attrs[gofastcore.AttrDate] = f.delDate
 	}
-	f.after = append(f.after, gofastcore.Block{Kind: gofastcore.KindNote, Text: text, Attrs: attrs})
+	b := gofastcore.Block{Kind: gofastcore.KindNote, Text: text, Attrs: attrs}
+	f.r.holdBlock(&b)
+	f.after = append(f.after, b)
 }
 
 // tableLevel is the nesting depth of tables a paragraph is in; 0 for none.
@@ -219,6 +221,9 @@ func (f *flow) endParaAt(p para, level int) {
 		}
 		for _, b := range f.after {
 			f.emit(b)
+		}
+		if f.kind == flowBody {
+			f.r.held = 0 // all that was held has been added
 		}
 	}
 	f.after = f.after[:0]
@@ -333,11 +338,13 @@ func (f *flow) emit(b gofastcore.Block) {
 		f.r.add(b)
 	case flowBox:
 		if f.parent != nil {
+			f.r.holdBlock(&b)
 			f.parent.after = append(f.parent.after, b)
 		} else {
 			f.r.add(b)
 		}
 	case flowFootnote, flowNote:
+		f.r.holdBlock(&b)
 		f.collected = append(f.collected, b)
 	default:
 		f.r.add(b)
@@ -571,6 +578,15 @@ func (f *flow) endRow(level int) {
 		return
 	}
 	if len(t.rows) >= maxRows {
+		t.cur = t.cur[:0]
+		return
+	}
+	cost := 0
+	for _, c := range t.cur {
+		cost += gofastcore.CellCost + len(c.text) + len(c.href)
+	}
+	if !f.r.hold(cost) {
+		// The rows before this one are kept; reading ends here.
 		t.cur = t.cur[:0]
 		return
 	}

@@ -322,6 +322,7 @@ func (r *reader) unshownNoteOf(text, counted string) gofastcore.Block {
 		b.Hidden = gofastcore.HiddenInvisible
 		r.outliers++
 	}
+	r.holdBlock(&b) // it waits for its paragraph to end
 	return b
 }
 

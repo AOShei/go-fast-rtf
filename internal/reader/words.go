@@ -823,6 +823,7 @@ func (r *reader) endNote(f *flow, parent *flow) {
 	out = append(out, rest...)
 	for _, b := range out {
 		if parent != nil {
+			r.holdBlock(&b)
 			parent.after = append(parent.after, b)
 		} else {
 			r.add(b)

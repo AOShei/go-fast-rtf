@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/AOShei/go-fast-core"
+	"github.com/AOShei/go-fast-rtf/internal/htmlrtf"
 	"github.com/AOShei/go-fast-rtf/internal/reader"
 )
 
@@ -153,8 +154,13 @@ func (e *Extractor) Extract(ctx context.Context, r io.ReaderAt, size int64, opts
 	case depth < 0:
 		depth = 1 << 30
 	}
+	html, err := extractHTML(ctx, opts, io.NewSectionReader(r, start, size-start), dec, depth)
+	if err != nil {
+		return nil, err
+	}
 	doc, err := reader.Read(ctx, io.NewSectionReader(r, start, size-start), reader.Config{
 		Opts: opts, MaxGroupDepth: depth, Decode: dec, Text: text,
+		DropBody: html != nil && len(html.Parts) > 0,
 	})
 	if err != nil {
 		if ctx.Err() != nil {
@@ -162,8 +168,41 @@ func (e *Extractor) Extract(ctx context.Context, r io.ReaderAt, size int64, opts
 		}
 		return nil, fmt.Errorf("gofastrtf: %v: %w", err, gofastcore.ErrMalformed)
 	}
+	if html != nil {
+		doc.Children = append([]*gofastcore.Document{html}, doc.Children...)
+	}
 	doc.Source = gofastcore.Source{Format: "rtf", Name: opts.Name, MIME: "application/rtf", Size: size}
 	return doc, nil
+}
+
+// HTMLName is the name of the HTML that a document declaring \fromhtml1
+// encapsulates, as it is handed to Options.Child.
+const HTMLName = "body.html"
+
+// extractHTML de-encapsulates the HTML of a document that declares
+// \fromhtml1 ([MS-OXRTFEX]) and hands it to opts.ExtractChild as
+// text/html. It returns nil for a document that does not declare it. The
+// HTML counts against the decode budget; HTML longer than the budget
+// allows is not handed over, and the child is listed only.
+func extractHTML(ctx context.Context, opts *gofastcore.Options, src io.Reader, dec *gofastcore.DecodeBudget, depth int) (*gofastcore.Document, error) {
+	res, err := htmlrtf.Extract(ctx, src, max(dec.Left(), 0), depth)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, fmt.Errorf("gofastrtf: %v: %w", err, gofastcore.ErrMalformed)
+	}
+	if !res.Found {
+		return nil, nil
+	}
+	mime := "text/html"
+	if cs := htmlrtf.Charset(res.CodePage); cs != "" {
+		mime += "; charset=" + cs
+	}
+	if res.Cut || !dec.Take(int64(len(res.HTML))) {
+		return opts.ExtractChild(ctx, HTMLName, mime, nil, 0), nil
+	}
+	return opts.ExtractChild(ctx, HTMLName, mime, bytes.NewReader(res.HTML), int64(len(res.HTML))), nil
 }
 
 // sniff reports whether the input starts like an RTF file, and where the

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased: core d4cd8e2
+
+- go-fast-core pinned at `d4cd8e2`: `Validate` now rejects an inferred
+  `thematic_break`; this library emits only declared ones and passes.
+
 ## Unreleased: no inferred thematic breaks
 
 - **Removed:** the `thematic_break` (`Origin` `inferred`) given for an

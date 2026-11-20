@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased: no inferred thematic breaks
+
+- **Removed:** the `thematic_break` (`Origin` `inferred`) given for an
+  empty paragraph whose only border is a styled bottom border. A border is
+  not a declared break; such a paragraph now gives no block, as any empty
+  paragraph. Paragraph border words are no longer tracked.
+
 ## Unreleased: field codes as stored data
 
 Built on go-fast-core `ebecf3c`.

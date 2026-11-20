@@ -68,13 +68,25 @@ func Extract(ctx context.Context, src io.Reader, limit int64, maxDepth int) (Res
 	deep := 0 // groups being skipped past maxDepth
 	ucLeft := int32(0)
 	var out []byte
-	emit := func(b ...byte) bool {
+	put := func(b ...byte) bool {
 		if int64(len(out)+len(b)) > limit {
 			res.Cut = true
 			return false
 		}
 		out = append(out, b...)
 		return true
+	}
+	// hi is a high surrogate from \uN waiting for its low half. Anything
+	// else written first makes it U+FFFD.
+	var hi rune
+	emit := func(b ...byte) bool {
+		if hi != 0 {
+			hi = 0
+			if !emitRune(put, res.CodePage, utf8.RuneError) {
+				return false
+			}
+		}
+		return put(b...)
 	}
 	// content is called at the first token that is content; it says
 	// whether to go on.
@@ -195,8 +207,20 @@ func Extract(ctx context.Context, src io.Reader, limit int64, maxDepth int) (Res
 					if r < 0 {
 						r += 0x10000
 					}
-					ok = emitRune(emit, res.CodePage, r)
 					ucLeft = g.uc
+					switch {
+					case r >= 0xDC00 && r < 0xE000 && hi != 0:
+						r, hi = (hi-0xD800)<<10|(r-0xDC00)+0x10000, 0
+					case r >= 0xD800 && r < 0xDC00:
+						if !emit() {
+							return res, nil
+						}
+						hi = r
+						continue
+					case r < 0 || r > 0x10FFFF || r >= 0xDC00 && r < 0xE000:
+						r = utf8.RuneError
+					}
+					ok = emitRune(emit, res.CodePage, r)
 				default:
 					ok = emit('\r', '\n')
 				}
@@ -270,6 +294,9 @@ func Extract(ctx context.Context, src io.Reader, limit int64, maxDepth int) (Res
 	}
 	if err := lex.Err(); err != nil && lex.Read == 0 {
 		return Result{}, err
+	}
+	if !emit() {
+		return res, nil
 	}
 	if res.Found {
 		res.HTML = out

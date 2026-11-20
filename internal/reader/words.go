@@ -21,6 +21,7 @@ var knownStar = map[string]bool{
 	"company": true, "manager": true, "category": true, "hlinkbase": true,
 	"footnote": true, "header": true, "footer": true,
 	"formfield": true, "ffname": true, "ffl": true,
+	"do": true, // a drawing object: its \dptxbxtext is read
 }
 
 // unreadStar names the skipped destinations that hold content a reader
@@ -403,7 +404,7 @@ func (r *reader) word(t token.Token) {
 	case "shp", "shpgrp":
 		r.openShape(g)
 	case "shpinst", "shppict", "ud", "result":
-	case "shptxt":
+	case "shptxt", "dptxbxtext": // \dptxbxtext: the text box of a Word 6/95 drawing object
 		f := &flow{r: r, kind: flowBox, parent: g.flow, back: r.shape.background()}
 		g.flow, g.buf, g.dest, g.p = f, nil, dBody, defaultPara()
 		g.onClose = f.end

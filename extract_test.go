@@ -750,6 +750,17 @@ func TestTextBox(t *testing.T) {
 	}
 }
 
+// TestDrawingObjectTextBox checks the text box of a Word 6/95 drawing
+// object (\do with \dptxbxtext), which older files have instead of \shp.
+func TestDrawingObjectTextBox(t *testing.T) {
+	doc := extract(t, wrap(`\pard Before{\*\do\dobxcolumn\dobypara\dodhgt8192\dptxbx\dptxlrtb{\dptxbxtext\pard Old box text\par}`+
+		`\dpx0\dpy0\dpxsize2000\dpysize800\dplinew15\dplinecor0\dplinecog0\dplinecob0} after\par`), nil)
+	bs := blocks(doc)
+	if len(bs) != 2 || bs[0].Text != "Before after" || bs[1].Text != "Old box text" {
+		t.Fatalf("got %s", dump(doc))
+	}
+}
+
 // TestTextBoxFillContrast checks that the text of a text box is judged
 // against the box's fill: white text in a dark box is in plain view, dark
 // text in it is not, and a box with no fill shows the page.

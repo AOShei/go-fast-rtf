@@ -174,7 +174,7 @@ func (e *Extractor) Extract(ctx context.Context, r io.ReaderAt, size int64, opts
 	}
 	doc, err := reader.Read(ctx, io.NewSectionReader(r, start, size-start), reader.Config{
 		Opts: opts, MaxGroupDepth: depth, Decode: dec, Text: text,
-		DropBody: html != nil && len(html.Parts) > 0,
+		DropBody: hasBlocks(html),
 	})
 	if err != nil {
 		if ctx.Err() != nil {
@@ -217,6 +217,21 @@ func extractHTML(ctx context.Context, opts *gofastcore.Options, src io.Reader, d
 		return opts.ExtractChild(ctx, HTMLName, mime, nil, 0), nil
 	}
 	return opts.ExtractChild(ctx, HTMLName, mime, bytes.NewReader(res.HTML), int64(len(res.HTML))), nil
+}
+
+// hasBlocks reports whether the HTML child gave any blocks. The body
+// gives no blocks only then: a child that was read but gave nothing
+// leaves the RTF's own reading of the text in place.
+func hasBlocks(d *gofastcore.Document) bool {
+	if d == nil {
+		return false
+	}
+	for i := range d.Parts {
+		if len(d.Parts[i].Blocks) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // sniff reports whether the input starts like an RTF file, and where the

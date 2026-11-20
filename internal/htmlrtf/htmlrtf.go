@@ -154,7 +154,11 @@ func Extract(ctx context.Context, src io.Reader, limit int64, maxDepth int) (Res
 				g.skip = true
 				continue
 			}
-			ucLeft = 0
+			if ucLeft > 0 {
+				// A control word is one of the characters \uN skips.
+				ucLeft--
+				continue
+			}
 			switch t.Name {
 			case "fromhtml":
 				if len(stack) == 1 && !res.Found && t.HasParam && t.Param == 1 {
@@ -237,6 +241,10 @@ func Extract(ctx context.Context, src io.Reader, limit int64, maxDepth int) (Res
 		case token.Symbol:
 			if t.Sym == '*' {
 				g.star = true
+				continue
+			}
+			if ucLeft > 0 {
+				ucLeft--
 				continue
 			}
 			switch t.Sym {

@@ -25,6 +25,16 @@ func TestSurrogatePair(t *testing.T) {
 	}
 }
 
+func TestUnicodeSkip(t *testing.T) {
+	// A control symbol or word after \uN is one of the characters it
+	// skips, as the RTF reader counts them.
+	src := `{\rtf1\fromhtml1 {\*\htmltag0 <p>}` + uw + `8364\{x` + uw + `8364\emdash y\uc2 ` + uw + `8364\par\'80z{\*\htmltag0 </p>}}`
+	res, _ := Extract(context.Background(), strings.NewReader(src), 1<<20, 10)
+	if got, want := string(res.HTML), "<p>&#8364;x&#8364;y&#8364;z</p>"; got != want {
+		t.Errorf("html %q, want %q", got, want)
+	}
+}
+
 func TestLateFromHTML(t *testing.T) {
 	// \fromhtml1 after content is not in the header.
 	for _, src := range []string{`{\rtf1\~\fromhtml1 {\*\htmltag0 <p>}}`, `{\rtf1\emdash\fromhtml1 {\*\htmltag0 <p>}}`} {

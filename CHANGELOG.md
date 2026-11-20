@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased: field codes as stored data
+
+Built on go-fast-core `ebecf3c`.
+
+- **Changed:** every field note (`\fldinst` instructions and `\xe`, `\tc`,
+  `\tcn` entries) carries `Attrs["stored"] = "field_code"`, as
+  go-fast-ooxml does and core's `Validate` now requires. Markdown and text
+  have the field results and leave the instructions out unless asked for,
+  so a Word document gives the same text from .rtf as from .docx.
+- **Command:** `-stored[=kinds]`: alone, `=true` or `=all` for every kind;
+  `=false` or `=` off; `=k1,k2` (or `k1+k2`) for those kinds only (core's
+  `StoredKindNames` plus `generator` and `custom_property`); anything else
+  is an error listing the kinds, exit status 2.
+
 ## Unreleased: encapsulated HTML
 
 - **Added:** a document that declares `\fromhtml1` (HTML mail as Outlook

@@ -22,6 +22,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"slices"
 	"sort"
 	"strings"
 
@@ -67,6 +68,49 @@ func (h *displayFlag) Set(v string) error {
 	return nil
 }
 
+// storedKinds are the kinds of stored data -stored=kinds may name: core's,
+// and the two this library defines itself.
+var storedKinds = append(slices.Clone(gofastcore.StoredKindNames), "generator", "custom_property")
+
+// storedFlag is -stored: given alone it stands for every kind of stored
+// data, and with a value for the kinds named.
+type storedFlag struct {
+	all   bool
+	kinds []string
+}
+
+func (f *storedFlag) IsBoolFlag() bool { return true }
+func (f *storedFlag) String() string {
+	if f.all {
+		return "all"
+	}
+	return strings.Join(f.kinds, ",")
+}
+
+func (f *storedFlag) Set(v string) error {
+	f.all, f.kinds = false, nil
+	switch v {
+	case "true", "all":
+		f.all = true
+		return nil
+	case "false", "":
+		return nil
+	}
+	for _, kind := range strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == '+' }) {
+		if !slices.Contains(storedKinds, kind) {
+			f.kinds = nil
+			return fmt.Errorf("unknown kind %q; the kinds are %s", kind, strings.Join(storedKinds, ", "))
+		}
+		if !slices.Contains(f.kinds, kind) {
+			f.kinds = append(f.kinds, kind)
+		}
+	}
+	if len(f.kinds) == 0 {
+		return fmt.Errorf("no kind in %q; the kinds are %s", v, strings.Join(storedKinds, ", "))
+	}
+	return nil
+}
+
 // run is the command: it reads args and writes documents to stdout and
 // messages to stderr, and returns the exit status.
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
@@ -84,11 +128,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		version  = flags.Bool("version", false, "print the version and exit")
 		// For Markdown and text.
 		furniture   = flags.Bool("furniture", false, "in Markdown and text, include running headers and footers")
-		stored      = flags.Bool("stored", false, "in Markdown and text, include the stored part (data the file keeps but shows nowhere: document variables, custom properties, the generator, data after the end)")
 		partMarkers = flags.Bool("part-markers", false, "in Markdown and text, put a line before each part saying which part it is")
 		children    = flags.Bool("children", true, "in Markdown and text, include embedded documents (attachments, members), each after a line naming it; -children=false leaves them out")
 	)
 	var exclude displayFlag
+	var stored storedFlag
+	flags.Var(&stored, "stored", "in Markdown and text, include stored data (data the file keeps but shows nowhere): all of it, or with =kinds only those kinds (such as field_code, document_variable, custom_property, generator, after_end)")
 	flags.Var(&exclude, "exclude-display", "in Markdown and text, leave out what the file declares not displayed: all of it, or with =reasons only those reasons (hidden, no_ink); JSON always has everything")
 	flags.Usage = func() {
 		fmt.Fprintln(stderr, "usage: gofastrtf [flags] file-or-directory...")
@@ -183,7 +228,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	w := bufio.NewWriter(out)
 	defer w.Flush()
-	render := &gofastcore.RenderOptions{Furniture: *furniture, Stored: *stored, PartMarkers: *partMarkers, Children: *children, ExcludeDisplay: exclude.reasons}
+	render := &gofastcore.RenderOptions{Furniture: *furniture, Stored: stored.all, StoredKinds: stored.kinds, PartMarkers: *partMarkers, Children: *children, ExcludeDisplay: exclude.reasons}
 
 	written := 0
 	for _, path := range inputs {

@@ -240,10 +240,13 @@ func (r *reader) openField(g *group) {
 
 // fieldNote makes the note of a field instruction or an index or
 // table-of-contents entry. It carries no display reason: the file keeps
-// such text without showing it, and says nothing more about it.
+// such text without showing it, and says nothing more about it. It is
+// stored data of kind field_code, so Markdown and text leave it out unless
+// asked for, as for a Word document read from .docx.
 func (r *reader) fieldNote(text string) gofastcore.Block {
 	b := gofastcore.Block{Kind: gofastcore.KindNote, Text: text,
-		Attrs: map[string]string{gofastcore.AttrNoteType: gofastcore.NoteField}}
+		Attrs: map[string]string{gofastcore.AttrNoteType: gofastcore.NoteField,
+			gofastcore.AttrStored: gofastcore.StoredFieldCode}}
 	r.holdBlock(&b) // it waits for its paragraph to end
 	return b
 }

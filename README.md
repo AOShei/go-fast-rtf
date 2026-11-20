@@ -50,7 +50,7 @@ never shows, a second part of kind `stored` follows it (see below);
 | `\footnote` | `footnote` after its paragraph, paragraphs joined by `\n`; `Marker` is its number (`\chftn`) in the document's format (`\ftnnar`, `\aftnnrlc`, ...): arabic for footnotes, lower-case roman for endnotes (`\ftnalt`) unless the document says otherwise |
 | `\annotation` with `\atnauthor`/`\atnid`, `\atndate` | `note` of type `comment`, with `author` and `date` |
 | `\deleted` | left out of the text and kept as a `note` of type `deletion` with `author` (`\revauthdel` and the revision table) and `date` (`\revdttmdel`); `text.tracked_changes` |
-| `\field` | the result (`\fldrslt`) is in the text; the instruction (`\fldinst`) is a `note` of type `field`, with no display reason; a field nested in an instruction is written into it as `{ ... }` |
+| `\field` | the result (`\fldrslt`) is in the text; the instruction (`\fldinst`) is a `note` of type `field`, with no display reason and `Attrs["stored"] = "field_code"` (Markdown and text leave it out unless `-stored` or `-stored=field_code`, as for .docx); `\xe`, `\tc` and `\tcn` entries are such notes too (`XE entry`, `TC entry`); a field nested in an instruction is written into it as `{ ... }` |
 | `HYPERLINK` field | with `Options.Spans`, a span with `Href` over the result (`\l` gives `#anchor`); in a table cell, `Table.Cells[].Href` |
 | `\pict` | `image` after its paragraph: `Image.ID` `pict-N`, MIME from `\pngblip`, `\jpegblip`, `\emfblip`, `\wmetafile`, `\macpict`, `\dibitmap`, `\wbitmap`; pixel size from the PNG or JPEG header, or `\picw`/`\pich` for bitmaps; alt text from `wzDescription` of `\picprop` or of the shape. `\nonshppict` and `\shprslt` (copies for old readers) are skipped |
 | `\shptxt`, `\dptxbxtext` | the text of a text box (of a shape, or of a Word 6/95 drawing object `\do`): its blocks follow the paragraph the shape is in |
@@ -111,7 +111,9 @@ Data the file keeps without showing it has no reason either, and stays
 where its provenance puts it: field instructions, and index and
 table-of-contents entries (`\xe`, `\tc`, `\tcn`), are `note` blocks of type
 `field` after their paragraph, written as Word writes the field
-(`XE entry`, `TC entry`); tracked deletions are `note` blocks of type
+(`XE entry`, `TC entry`), each with `Attrs["stored"] = "field_code"`, so
+that Markdown and text leave them out unless stored data of that kind is
+asked for, as go-fast-ooxml does for .docx; tracked deletions are `note` blocks of type
 `deletion`, the text being given as if the changes were accepted; document
 properties are metadata; the rest is in the stored part.
 
@@ -127,8 +129,10 @@ nothing about either. Threat detection is outside this library.
 
 What belongs to the file and is shown on no page goes to the `stored` part,
 which carries no reason (the renderers leave it out unless
-`RenderOptions.Stored`, the command's `-stored`), each block with
-`Attrs["stored"]`:
+`RenderOptions.Stored` or `RenderOptions.StoredKinds`, the command's
+`-stored[=kinds]`), each block with `Attrs["stored"]`. Field notes in the
+body carry `Attrs["stored"] = "field_code"` and are left out the same way.
+In the stored part:
 
 | `stored` | What |
 |---|---|
@@ -197,7 +201,7 @@ only; JSON always has everything:
 | Flag | Effect |
 |---|---|
 | `-furniture` | in Markdown and text, include running headers and footers |
-| `-stored` | in Markdown and text, include the stored part (data the file keeps but shows nowhere) |
+| `-stored[=kinds]` | in Markdown and text, include stored data (data the file keeps but shows nowhere): all of it (`-stored`, `=true`, `=all`), or with =kinds only those kinds, comma- or `+`-separated (core's: `field_code`, `document_variable`, `after_end`, ...; this library's own: `generator`, `custom_property`). `=false` or `=` turn it off; an unknown kind is an error listing the kinds, exit status 2 |
 | `-part-markers` | in Markdown and text, put a line before each part saying which part it is |
 | `-children` (default true) | in Markdown and text, include embedded documents (here, objects the command reads: embedded RTF files), each after a line naming it (`[child 1: name]` in text, `<!-- child 1: name -->` in Markdown); a child that was not read gives only that line; `-children=false` leaves them out |
 | `-exclude-display[=reasons]` | in Markdown and text, leave out what the file declares not displayed: all of it (alone, `=true` or `=all`), or with `=reasons` only those reasons (`hidden`, `no_ink`, joined by `,` or `+`); `=false` or `=` turns it off, and any other value, `unknown` included, is an error |

@@ -63,6 +63,13 @@ Other tests:
 
 ## 7. For Andrew
 
-- **Trailing-data threshold:** white space and NUL bytes after the brace do not count as data. Anything else counts, including a stray `}` or control words with no text: that gets the warning but no stored block. Please confirm.
-- **Shape `fHidden`:** a drawing shape's `fHidden` property is arguably a declaration. It is not reported now and is listed as open in the plan. Should it map to `hidden`?
+- **Trailing-data threshold:** decided 2026-11-20; see below.
+- **Shape `fHidden`:** decided 2026-11-20; see below.
 - **Process:** the worktree's corpus test could not be pointed at the corpus (setting an environment variable, a symlink and an edit outside the working directory were all refused). The "before" corpus and benchmark figures were taken by switching the main checkout to a detached `a8702ff` for a moment and then switching back. The worktree was created and removed as asked.
+
+## Follow-up decisions (2026-11-20)
+
+- **Command flags** (`5207b81`): `gofastrtf` now has `-part-markers`. `-exclude-display=unknown` is an error that lists the reasons. The help text of `-furniture`, `-stored`, `-part-markers` and `-exclude-display` follows `COMMAND_FLAGS.md`. `TestExcludeDisplayFlag` covers alone, `=true`, `=all`, `=hidden`, `=no_ink`, both reasons (`,` and `+`), `=`, `=false`, and `=unknown` / `=bogus` as errors. `TestRun` covers `-part-markers`.
+- **Shape `fHidden` gives `hidden`** (`9307d5f`): when `{\sp{\sn fHidden}{\sv N}}` has N ≠ 0, every block of the shape's text box (`\shptxt`) gets `hidden` on the whole block. So do the shape's pictures and the shapes inside a hidden `\shpgrp`. `{\sv 0}` gives nothing. A text box's blocks are now held until its shape ends, because the property may come after the text. Where they end up does not change. `TestShapeHidden` covers `1` and `0`, the property placed after the text box, `\v` inside a hidden box, and a hidden group. `fHidden` inside a picture's `\picprop` is not read: it belongs to the picture, not to a shape.
+- **Bytes after the closing brace** (`20b9f56`): `0x1A` (Ctrl-Z) joins white space (including CR and LF) and NUL in the ignored set. If only ignored bytes follow the brace, there is no stored part and no warning. Any other byte still counts, and there is no byte-count threshold. `TestAfterEnd` covers `}\r\n\x1a` and similar endings, plus `\x1ax` and `\r\n.\x1a` as data. README, `internal/reader/reader.go` and CHANGELOG are updated.
+- Corpus test: dev 70/70 ok and heldout 24/24 ok, no Validate failures, `input.trailing_data` = 2 in each (unchanged). Fuzz ran for 20 s with a new seed (`5111792`).

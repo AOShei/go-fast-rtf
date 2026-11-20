@@ -26,6 +26,7 @@ func FuzzExtract(f *testing.F) {
 		`{\rtf1\ansicpg936{\fonttbl{\f0\fcharset134 S;}{\f1\fcharset136 M;}{\f2\fcharset129 B;}}\'d6\'d0{\f1\'a4\'40}{\f2\'b0\'a1}` + "\xd6\xd0" + `\uc2` + "\\" + "u" + `20013\'d6\'d0\'d6}`,
 		wrap(`\pard A\par\pard\brdrb\brdrs\brdrw10 \par\pard\box\brdrs B\par\pard\brdrb\brdrs\page\par`),
 		`{\rtf1{\stylesheet{\s1\v\sbasedon2 a;}{\s2\cf1\sbasedon1 b;}{\*\cs3\fs1\sbasedon3 c;}}\pard\s1\cs3 x\par}`,
+		wrap(`\trowd\clcbpat1\cellx100\clcbpat2\cellx200\pard\intbl\cf2 a\cell\cf1 b\cell\row{\shp{\*\shpinst{\sp{\sn fillColor}{\sv 0}}{\sp{\sn fFilled}{\sv 1}}{\shptxt\cf2 t\par}}}{\*\do\dptxbx{\dptxbxtext x\par}}\par`),
 	} {
 		f.Add([]byte(s))
 	}

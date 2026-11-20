@@ -89,7 +89,7 @@ and always run; `Options.DeepHidden` changes nothing.
 |---|---|
 | `invisible` | `\v` (hidden text), `\webhidden`; and an item of routinely unshown data that is out of proportion for its kind (below) |
 | `tiny` | `\fsN` below 2 points (N < 4), including `\fs0` |
-| `low_contrast` | the text colour (`\cf`) against what is behind it, judged with `gofastcore.LowContrast`: the first set of `\highlight`, `\chcbpat`, `\cb`, the paragraph's `\cbpat`, the table cell's `\clcbpat`, the page colour (the `fillColor` of `\*\background`), else white. Text in the automatic colour is never flagged |
+| `low_contrast` | the text colour (`\cf`) against what is behind it, judged with `gofastcore.LowContrast`: the first set of `\highlight`, `\chcbpat`, `\cb`, the paragraph's `\cbpat`, the table cell's `\clcbpat`, the `fillColor` of the text box (white if it sets none; the page if `fFilled` is 0), the page colour (the `fillColor` of `\*\background`), else white. Text in the automatic colour is never flagged |
 | `invisible_chars` | core's scan, on every block |
 
 These properties count whether they are written on the run or set by a
@@ -108,8 +108,9 @@ Tracked deletions are not flagged hidden: as in go-fast-ooxml they are
 accepted.
 
 What `invisible` and the others cannot see: shapes positioned off the page,
-text covered by pictures, text inside pictures, the fill of a text box,
-and cell shading given only as a pattern (`\clshdng`, `\clcfpat`).
+text covered by pictures, text inside pictures, a fill given as a scheme
+or system colour or as a gradient, and cell shading given only as a
+pattern (`\clshdng`, `\clcfpat`).
 
 ### What the file stores and never shows
 

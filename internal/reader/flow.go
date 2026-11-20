@@ -37,6 +37,7 @@ type flow struct {
 	r      *reader
 	kind   flowKind
 	parent *flow
+	back   *rgb // the fill of the text box, if it has one
 
 	text      []byte
 	runs      []run
@@ -93,7 +94,7 @@ func (f *flow) add(c rune, g *group) {
 	if len(f.del) > 0 {
 		f.flushDel()
 	}
-	h := r.hiddenOf(&g.c, &g.p, f.cellShading(&g.p))
+	h := r.hiddenOf(&g.c, &g.p, f.cellShading(&g.p), f.back)
 	var st gofastcore.Style
 	href := ""
 	if r.opts.Spans {

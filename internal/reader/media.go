@@ -15,6 +15,21 @@ type shape struct {
 	prev   *shape
 	alt    string
 	images []gofastcore.Block
+	fill   *rgb // fillColor, if set
+	noFill bool // fFilled 0: the shape is not filled
+}
+
+// background is the colour behind the text of the shape, or nil when it
+// is not filled and the page shows through. A filled shape with no
+// fillColor is white.
+func (s *shape) background() *rgb {
+	switch {
+	case s == nil || s.noFill:
+		return nil
+	case s.fill != nil:
+		return s.fill
+	}
+	return &rgb{r: 255, g: 255, b: 255}
 }
 
 type spState struct {
@@ -64,6 +79,12 @@ func (r *reader) shapeProp(name, value string) {
 		if v, err := strconv.ParseInt(value, 10, 64); err == nil && v >= 0 {
 			r.page = &rgb{r: uint8(v), g: uint8(v >> 8), b: uint8(v >> 16)}
 		}
+	case r.shape != nil && r.pict == nil && name == "fillColor":
+		if v, err := strconv.ParseInt(value, 10, 64); err == nil && v >= 0 && v <= 0xFFFFFF {
+			r.shape.fill = &rgb{r: uint8(v), g: uint8(v >> 8), b: uint8(v >> 16)}
+		}
+	case r.shape != nil && r.pict == nil && name == "fFilled":
+		r.shape.noFill = value == "0"
 	case name == "wzDescription" && value != "":
 		if r.pict != nil {
 			r.pict.alt = value

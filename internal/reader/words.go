@@ -404,7 +404,7 @@ func (r *reader) word(t token.Token) {
 		r.openShape(g)
 	case "shpinst", "shppict", "ud", "result":
 	case "shptxt":
-		f := &flow{r: r, kind: flowBox, parent: g.flow}
+		f := &flow{r: r, kind: flowBox, parent: g.flow, back: r.shape.background()}
 		g.flow, g.buf, g.dest, g.p = f, nil, dBody, defaultPara()
 		g.onClose = f.end
 	case "sp":

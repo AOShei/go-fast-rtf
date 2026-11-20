@@ -728,6 +728,26 @@ func TestTextBox(t *testing.T) {
 	}
 }
 
+// TestTextBoxFillContrast checks that the text of a text box is judged
+// against the box's fill: white text in a dark box is in plain view, dark
+// text in it is not, and a box with no fill shows the page.
+func TestTextBoxFillContrast(t *testing.T) {
+	box := func(props, text string) string {
+		return `{\shp{\*\shpinst{\sp{\sn shapeType}{\sv 202}}` + props + `{\shptxt \pard ` + text + `\par}}}`
+	}
+	dark := `{\sp{\sn fillColor}{\sv 1315860}}` // RGB 20,20,20
+	src := wrap(`\pard Before` + box(dark, `\cf2 White on dark.`) + box(dark, `\cf1 Black on dark.`) +
+		box(dark+`{\sp{\sn fFilled}{\sv 0}}`, `\cf2 White on the page.`) + ` after\par`)
+	doc := extract(t, src, nil)
+	bs := blocks(doc)
+	if len(bs) != 4 {
+		t.Fatalf("got %s", dump(doc))
+	}
+	if bs[1].Hidden != 0 || bs[2].Hidden != gofastcore.HiddenLowContrast || bs[3].Hidden != gofastcore.HiddenLowContrast {
+		t.Errorf("flags %s, %s, %s", bs[1].Hidden, bs[2].Hidden, bs[3].Hidden)
+	}
+}
+
 func TestThematicBreaks(t *testing.T) {
 	const rule = `\pard\brdrb\brdrs\brdrw10\brsp20 \par`
 	kinds := func(doc *gofastcore.Document) string {

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,10 +55,64 @@ func TestRun(t *testing.T) {
 		t.Errorf("markdown %q", got)
 	}
 
+	out.Reset()
+	if code := run(context.Background(), []string{"-format", "text", "-part-markers", path}, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	var plain bytes.Buffer
+	if code := run(context.Background(), []string{"-format", "text", path}, &plain, &errOut); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	if out.String() == plain.String() || !strings.Contains(out.String(), "Body hidden") {
+		t.Errorf("-part-markers gave %q, without %q", out.String(), plain.String())
+	}
+
 	if code := run(context.Background(), []string{filepath.Join(dir, "missing.rtf")}, &out, &errOut); code != 1 {
 		t.Errorf("missing file: exit %d", code)
 	}
 	if code := run(context.Background(), []string{"-format", "xml", path}, &out, &errOut); code != 2 {
 		t.Errorf("bad format: exit %d", code)
+	}
+}
+
+func TestExcludeDisplayFlag(t *testing.T) {
+	cases := []struct {
+		args []string
+		want gofastcore.Display
+		err  bool
+	}{
+		{[]string{"-exclude-display"}, gofastcore.DisplayAny, false},
+		{[]string{"-exclude-display=true"}, gofastcore.DisplayAny, false},
+		{[]string{"-exclude-display=all"}, gofastcore.DisplayAny, false},
+		{[]string{"-exclude-display=hidden"}, gofastcore.DisplayHidden, false},
+		{[]string{"-exclude-display=no_ink"}, gofastcore.DisplayNoInk, false},
+		{[]string{"-exclude-display=hidden,no_ink"}, gofastcore.DisplayHidden | gofastcore.DisplayNoInk, false},
+		{[]string{"-exclude-display=hidden+no_ink"}, gofastcore.DisplayHidden | gofastcore.DisplayNoInk, false},
+		{[]string{"-exclude-display="}, 0, false},
+		{[]string{"-exclude-display=false"}, 0, false},
+		{[]string{"-exclude-display=unknown"}, 0, true},
+		{[]string{"-exclude-display=hidden,unknown"}, 0, true},
+		{[]string{"-exclude-display=bogus"}, 0, true},
+	}
+	for _, c := range cases {
+		var d displayFlag
+		fs := flag.NewFlagSet("t", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		fs.Var(&d, "exclude-display", "")
+		err := fs.Parse(c.args)
+		if (err != nil) != c.err {
+			t.Errorf("%v: err %v", c.args, err)
+			continue
+		}
+		if err == nil && d.reasons != c.want {
+			t.Errorf("%v: got %v, want %v", c.args, d.reasons, c.want)
+		}
+	}
+	var out, errOut bytes.Buffer
+	if code := run(context.Background(), []string{"-exclude-display=unknown", "x.rtf"}, &out, &errOut); code != 2 {
+		t.Errorf("=unknown: exit %d", code)
+	}
+	if !strings.Contains(errOut.String(), "hidden") || !strings.Contains(errOut.String(), "no_ink") {
+		t.Errorf("=unknown: stderr %q does not list the reasons", errOut.String())
 	}
 }

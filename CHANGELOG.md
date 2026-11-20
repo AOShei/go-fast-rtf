@@ -24,6 +24,10 @@ no longer judges whether text can be seen.
   flagged), with no reason, and the stored part carries
   `input.trailing_data` with the number of bytes after the brace.
 - **Command:** `-exclude-hidden` is now `-exclude-display`; `-stored`
-  includes the stored part in Markdown and text.
+  includes the stored part in Markdown and text. The render flags follow
+  the series' `COMMAND_FLAGS.md`: `-part-markers` is new, and
+  `-exclude-display=unknown` is an error (there is no such reason to ask
+  for); the help text of `-furniture`, `-stored` and `-exclude-display`
+  matches the other commands.
 - **Kept:** every bound on budgets and limits, the custom-property limit,
   the text of Word 6/95 drawing objects; nothing is dropped.

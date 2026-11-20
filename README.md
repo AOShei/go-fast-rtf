@@ -186,7 +186,17 @@ gofastrtf -format markdown -exclude-display docs/
 ```
 
 `-images`, `-spans`, `-max-group-depth`, `-max-decoded-bytes`,
-`-max-text-bytes`, `-furniture`, `-stored`, `-exclude-display`, `-quiet`, `-o`; `gofastrtf -h` lists them.
+`-max-text-bytes`, `-quiet`, `-o`; `gofastrtf -h` lists them. The render
+flags are the same in every go-fast command and affect Markdown and text
+only; JSON always has everything:
+
+| Flag | Effect |
+|---|---|
+| `-furniture` | in Markdown and text, include running headers and footers |
+| `-stored` | in Markdown and text, include the stored part (data the file keeps but shows nowhere) |
+| `-part-markers` | in Markdown and text, put a line before each part saying which part it is |
+| `-exclude-display[=reasons]` | in Markdown and text, leave out what the file declares not displayed: all of it (alone, `=true` or `=all`), or with `=reasons` only those reasons (`hidden`, `no_ink`, joined by `,` or `+`); `=false` or `=` turns it off, and any other value, `unknown` included, is an error |
+
 Messages go to standard error; the exit status is 1 if a file could not be
 read.
 

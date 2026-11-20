@@ -60,7 +60,7 @@ func (h *displayFlag) Set(v string) error {
 	if err := reasons.UnmarshalText([]byte(strings.ReplaceAll(v, ",", "+"))); err != nil {
 		return err
 	}
-	if !reasons.Valid() || reasons == 0 {
+	if !reasons.Valid() || reasons == 0 || reasons&gofastcore.DisplayUnknown != 0 {
 		return fmt.Errorf("unknown reason in %q; the reasons are %s", v, strings.ReplaceAll((gofastcore.DisplayAny&^gofastcore.DisplayUnknown).String(), "+", ", "))
 	}
 	h.reasons = reasons
@@ -83,11 +83,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		quiet    = flags.Bool("quiet", false, "say nothing about files that were read; failures are still reported")
 		version  = flags.Bool("version", false, "print the version and exit")
 		// For Markdown and text.
-		furniture = flags.Bool("furniture", false, "in Markdown and text, include running headers and footers")
-		stored    = flags.Bool("stored", false, "in Markdown and text, include the stored part (document variables, custom properties, the generator, data after the end)")
+		furniture   = flags.Bool("furniture", false, "in Markdown and text, include running headers and footers")
+		stored      = flags.Bool("stored", false, "in Markdown and text, include the stored part (data the file keeps but shows nowhere: document variables, custom properties, the generator, data after the end)")
+		partMarkers = flags.Bool("part-markers", false, "in Markdown and text, put a line before each part saying which part it is")
 	)
 	var exclude displayFlag
-	flags.Var(&exclude, "exclude-display", "in Markdown and text, leave out what the file declares is not shown: all of it, or with =reasons only those reasons, such as hidden (JSON always has everything, with its reasons)")
+	flags.Var(&exclude, "exclude-display", "in Markdown and text, leave out what the file declares not displayed: all of it, or with =reasons only those reasons (hidden, no_ink); JSON always has everything")
 	flags.Usage = func() {
 		fmt.Fprintln(stderr, "usage: gofastrtf [flags] file-or-directory...")
 		fmt.Fprintln(stderr, "Extracts RTF files. A directory stands for the .rtf files in it and below it.")
@@ -181,7 +182,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	w := bufio.NewWriter(out)
 	defer w.Flush()
-	render := &gofastcore.RenderOptions{Furniture: *furniture, Stored: *stored, ExcludeDisplay: exclude.reasons}
+	render := &gofastcore.RenderOptions{Furniture: *furniture, Stored: *stored, PartMarkers: *partMarkers, ExcludeDisplay: exclude.reasons}
 
 	written := 0
 	for _, path := range inputs {

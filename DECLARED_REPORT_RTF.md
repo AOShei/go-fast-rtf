@@ -5,7 +5,7 @@ The go-fast-rtf part of `HANDOFF_DECLARED_NOT_JUDGED.md` (part 7), following `DE
 ## 1. Branch and core
 
 - Branch `declared-not-judged`, local only (no remote, no pull request). The commits on top of `a8702ff` are `8a5228f` (the change), `cbc604e` (plan wording, flag type name, test tidy) and the commit adding this report.
-- Pins go-fast-core **`05bbddb`** (`v0.0.0-20261120081927-05bbddb16b9f`), schema 0.2.
+- Pins go-fast-core **`787b056`** (`v0.0.0-20261120105453-787b0567ad0e`; adds `RenderOptions.Children`, used by `-children`), schema 0.2.
 
 ## 2. Declarations reported (as in the README)
 

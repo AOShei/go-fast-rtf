@@ -2,7 +2,7 @@
 
 ## Unreleased: declared, not judged (breaking)
 
-Built on go-fast-core `05bbddb`, schema `0.2`.
+Built on go-fast-core `787b056`, schema `0.2`.
 
 The library now reports only what an RTF file declares about display, and
 no longer judges whether text can be seen.
@@ -31,6 +31,8 @@ no longer judges whether text can be seen.
   the series' `COMMAND_FLAGS.md`: `-part-markers` is new, and
   `-exclude-display=unknown` is an error (there is no such reason to ask
   for); the help text of `-furniture`, `-stored` and `-exclude-display`
-  matches the other commands.
+  matches the other commands. `-children` (default true) prints embedded
+  documents in Markdown and text, each after a line naming it, through
+  core's `RenderOptions.Children`; `-children=false` leaves them out.
 - **Kept:** every bound on budgets and limits, the custom-property limit,
   the text of Word 6/95 drawing objects; nothing is dropped.

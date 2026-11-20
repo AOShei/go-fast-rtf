@@ -62,7 +62,7 @@ checked byte by byte against Python's codecs by the orchestrator.
    (all kept), and a corpus test over the public corpus. Its visibility
    rules are superseded by phase 9; CHANGELOG.md lists them.
 
-9. **Declared, not judged** (declared-not-judged branch, core 05bbddb,
+9. **Declared, not judged** (declared-not-judged branch, core 787b056,
    schema 0.2) — Status: done. **Supersedes the hidden-text parts of
    phases 4, 6, 7 and 8.** The library reports only what the file
    declares: `hidden` for `\v` (direct or through `\s`/`\cs` styles and
@@ -76,7 +76,9 @@ checked byte by byte against Python's codecs by the orchestrator.
    no reason. See `DECLARED_REPORT_RTF.md` in the workspace root.
    Follow-up decisions (2026-11-20, Andrew): a shape's `fHidden` set to
    true gives its text box and pictures `hidden`; the command has the
-   series' render flags (`COMMAND_FLAGS.md`), with `-part-markers`.
+   series' render flags (`COMMAND_FLAGS.md`), with `-part-markers`, and `-children` (default
+   true, core's `RenderOptions.Children`, added with core 787b056) prints
+   embedded documents in Markdown and text.
 
 ## Next, in order
 

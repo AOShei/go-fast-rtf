@@ -68,13 +68,25 @@ func Extract(ctx context.Context, src io.Reader, limit int64, maxDepth int) (Res
 	deep := 0 // groups being skipped past maxDepth
 	ucLeft := int32(0)
 	var out []byte
-	emit := func(b ...byte) bool {
+	put := func(b ...byte) bool {
 		if int64(len(out)+len(b)) > limit {
 			res.Cut = true
 			return false
 		}
 		out = append(out, b...)
 		return true
+	}
+	// hi is a high surrogate from \uN waiting for its low half. Anything
+	// else written first makes it U+FFFD.
+	var hi rune
+	emit := func(b ...byte) bool {
+		if hi != 0 {
+			hi = 0
+			if !emitRune(put, res.CodePage, utf8.RuneError) {
+				return false
+			}
+		}
+		return put(b...)
 	}
 	// content is called at the first token that is content; it says
 	// whether to go on.
@@ -142,7 +154,11 @@ func Extract(ctx context.Context, src io.Reader, limit int64, maxDepth int) (Res
 				g.skip = true
 				continue
 			}
-			ucLeft = 0
+			if ucLeft > 0 {
+				// A control word is one of the characters \uN skips.
+				ucLeft--
+				continue
+			}
 			switch t.Name {
 			case "fromhtml":
 				if len(stack) == 1 && !res.Found && t.HasParam && t.Param == 1 {
@@ -195,14 +211,31 @@ func Extract(ctx context.Context, src io.Reader, limit int64, maxDepth int) (Res
 					if r < 0 {
 						r += 0x10000
 					}
-					ok = emitRune(emit, res.CodePage, r)
 					ucLeft = g.uc
+					switch {
+					case r >= 0xDC00 && r < 0xE000 && hi != 0:
+						r, hi = (hi-0xD800)<<10|(r-0xDC00)+0x10000, 0
+					case r >= 0xD800 && r < 0xDC00:
+						if !emit() {
+							return res, nil
+						}
+						hi = r
+						continue
+					case r < 0 || r > 0x10FFFF || r >= 0xDC00 && r < 0xE000:
+						r = utf8.RuneError
+					}
+					ok = emitRune(emit, res.CodePage, r)
 				default:
 					ok = emit('\r', '\n')
 				}
 			default:
-				if r, sp := special[t.Name]; sp && on {
-					ok = emitRune(emit, res.CodePage, r)
+				if r, sp := special[t.Name]; sp {
+					if !content() {
+						return res, nil
+					}
+					if on {
+						ok = emitRune(emit, res.CodePage, r)
+					}
 				}
 			}
 		case token.Symbol:
@@ -210,14 +243,21 @@ func Extract(ctx context.Context, src io.Reader, limit int64, maxDepth int) (Res
 				g.star = true
 				continue
 			}
+			if ucLeft > 0 {
+				ucLeft--
+				continue
+			}
+			switch t.Sym {
+			case '{', '}', '\\', '~', '_':
+				if !content() {
+					return res, nil
+				}
+			}
 			if !on {
 				continue
 			}
 			switch t.Sym {
 			case '{', '}', '\\':
-				if !content() {
-					return res, nil
-				}
 				ok = emit(t.Sym)
 			case '~':
 				ok = emitRune(emit, res.CodePage, 0xA0)
@@ -262,6 +302,9 @@ func Extract(ctx context.Context, src io.Reader, limit int64, maxDepth int) (Res
 	}
 	if err := lex.Err(); err != nil && lex.Read == 0 {
 		return Result{}, err
+	}
+	if !emit() {
+		return res, nil
 	}
 	if res.Found {
 		res.HTML = out

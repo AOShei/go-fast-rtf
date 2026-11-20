@@ -155,6 +155,24 @@ func TestTable(t *testing.T) {
 	}
 }
 
+// TestCellShadingContrast checks that text is judged against the shading
+// of its table cell: white text in a dark header row, as Word's table
+// styles write it, is in plain view; black text in a black cell is not.
+func TestCellShadingContrast(t *testing.T) {
+	// Colours of wrap: 1 black, 2 white, 3 near white, 4 red.
+	src := wrap(`\trowd\trhdr\clcbpat1\cellx3000\clcbpat1\cellx6000\pard\intbl\cf2\b Region\cell Revenue\cell\row` +
+		`\trowd\cellx3000\clcbpat1\cellx6000\pard\intbl\plain\cf1 EMEA\cell secret\cell\row\pard After\par`)
+	doc := extract(t, src, nil)
+	bs := blocks(doc)
+	if len(bs) != 2 || bs[0].Kind != gofastcore.KindTable {
+		t.Fatalf("got %s", dump(doc))
+	}
+	tb := bs[0].Table
+	if len(tb.Hidden) != 1 || tb.Hidden[0].Row != 1 || tb.Hidden[0].Col != 1 || tb.Hidden[0].Hidden != gofastcore.HiddenLowContrast {
+		t.Errorf("hidden cells %+v", tb.Hidden)
+	}
+}
+
 func TestNestedTable(t *testing.T) {
 	src := wrap(`\trowd\cellx3000\cellx6000\pard\intbl outer1\cell` +
 		`\pard\intbl\itap2 in1\nestcell in2\nestcell{\*\nesttableprops\trowd\cellx1000\cellx2000\nestrow}{\nonesttables\par}` +

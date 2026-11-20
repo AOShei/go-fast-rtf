@@ -267,8 +267,8 @@ func (r *reader) word(t token.Token) {
 			}
 			g.flow.endRow(level)
 		}
-	case "trowd", "cellx", "clmgf", "clmrg", "clvmgf", "clvmrg", "trhdr":
-		r.rowWord(g, name)
+	case "trowd", "cellx", "clmgf", "clmrg", "clvmgf", "clvmrg", "trhdr", "clcbpat":
+		r.rowWord(g, name, v)
 	case "nesttableprops":
 		g.dest, g.nest = dWords, true
 	case "nonesttables", "shprslt", "nonshppict", "ftnsep", "ftnsepc", "aftnsep", "aftnsepc", "ftncn", "aftncn":
@@ -742,7 +742,7 @@ func (r *reader) listWord(g *group, name string, v int32) {
 }
 
 // rowWord reads the control words that define a table row.
-func (r *reader) rowWord(g *group, name string) {
+func (r *reader) rowWord(g *group, name string, v int32) {
 	f := g.flow
 	if f == nil {
 		return
@@ -768,6 +768,8 @@ func (r *reader) rowWord(g *group, name string) {
 		d.next.vm = 1
 	case "clvmrg":
 		d.next.vm = 2
+	case "clcbpat":
+		d.next.shd = v
 	case "trhdr":
 		d.header = true
 	}

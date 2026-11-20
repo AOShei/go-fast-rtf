@@ -93,7 +93,7 @@ func (f *flow) add(c rune, g *group) {
 	if len(f.del) > 0 {
 		f.flushDel()
 	}
-	h := r.hiddenOf(&g.c, &g.p)
+	h := r.hiddenOf(&g.c, &g.p, f.cellShading(&g.p))
 	var st gofastcore.Style
 	href := ""
 	if r.opts.Spans {
@@ -523,7 +523,28 @@ func (c *cell) addPara(text string, hidden gofastcore.Hidden, spans []gofastcore
 	}
 }
 
-type cellDef struct{ hm, vm uint8 } // 1 first of a merge, 2 merged into it
+type cellDef struct {
+	hm, vm uint8 // 1 first of a merge, 2 merged into it
+	shd    int32 // \clcbpat: colour index of the cell's shading
+}
+
+// cellShading is the colour index of the shading of the table cell that
+// text with paragraph properties p is in, or 0.
+func (f *flow) cellShading(p *para) int32 {
+	level := tableLevel(*p)
+	if level == 0 || level > len(f.defs) {
+		return 0
+	}
+	cells := f.defs[level-1].cells
+	i := 0
+	if level <= len(f.tables) {
+		i = len(f.tables[level-1].cur)
+	}
+	if i < len(cells) {
+		return cells[i].shd
+	}
+	return 0
+}
 
 type rowDef struct {
 	cells  []cellDef

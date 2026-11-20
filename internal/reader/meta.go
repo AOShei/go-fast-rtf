@@ -10,8 +10,9 @@ import (
 )
 
 // hiddenOf returns the reasons text with properties c in a paragraph with
-// properties p cannot be seen.
-func (r *reader) hiddenOf(c *chr, p *para) gofastcore.Hidden {
+// properties p, in a table cell shaded with colour index cell (0 for none),
+// cannot be seen.
+func (r *reader) hiddenOf(c *chr, p *para, cell int32) gofastcore.Hidden {
 	var h gofastcore.Hidden
 	if c.hidden || c.webHidden {
 		h |= gofastcore.HiddenInvisible
@@ -19,7 +20,7 @@ func (r *reader) hiddenOf(c *chr, p *para) gofastcore.Hidden {
 	if float64(c.fs)/2 < gofastcore.HiddenTinySize {
 		h |= gofastcore.HiddenTiny
 	}
-	if r.lowContrast(c, p) {
+	if r.lowContrast(c, p, cell) {
 		h |= gofastcore.HiddenLowContrast
 	}
 	return h
@@ -34,10 +35,10 @@ func (r *reader) colorAt(i int32) (rgb, bool) {
 }
 
 // lowContrast compares the text colour with what is behind the text: its
-// highlight, its shading, \cb, the paragraph's shading, the page colour,
-// white. Text in the automatic colour is drawn to contrast with what is
-// behind it, so it is never low contrast.
-func (r *reader) lowContrast(c *chr, p *para) bool {
+// highlight, its shading, \cb, the paragraph's shading, the table cell's
+// shading, the page colour, white. Text in the automatic colour is drawn
+// to contrast with what is behind it, so it is never low contrast.
+func (r *reader) lowContrast(c *chr, p *para, cell int32) bool {
 	fg, ok := r.colorAt(c.cf)
 	if !ok {
 		return false
@@ -45,7 +46,7 @@ func (r *reader) lowContrast(c *chr, p *para) bool {
 	key := [2]int32{c.cf, -2}
 	back := rgb{r: 255, g: 255, b: 255}
 	found := false
-	for _, i := range []int32{c.hl, c.shd, c.cb, p.shd} {
+	for _, i := range []int32{c.hl, c.shd, c.cb, p.shd, cell} {
 		if bg, ok := r.colorAt(i); ok {
 			back, key[1], found = bg, i, true
 			break

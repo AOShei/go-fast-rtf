@@ -69,7 +69,10 @@ surrogate pairs joined) and `\'hh` through the code page of the current font
 decoded, UTF-8 (65001), and the double-byte code pages 932 (Japanese), 936
 (Simplified Chinese), 949 (Korean) and 950 (Traditional Chinese), in `\'hh`
 escapes and in raw 8-bit bytes alike; a lead byte and its trail byte may
-come in two escapes. A pair the table does not map, and a lead byte with
+come in two escapes. The user-defined areas, which the tables leave out,
+are computed as Windows maps them: in 932, lead bytes 0xF0 to 0xF9 to
+U+E000 to U+E757, and byte 0x80 alone is U+0080; in 936, 0xAAA1 to 0xAFFE,
+0xF8A1 to 0xFEFE and 0xA140 to 0xA7A0 to U+E000 to U+E765. A pair the table does not map, and a lead byte with
 no trail byte, are one U+FFFD each, and `text.unmapped_glyphs` names the
 code page. Other code pages (437, 850, Johab, ...) are not decoded. The ligatures
 U+FB00 to U+FB06 (Mac Roman has two) are written as their letters.

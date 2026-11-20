@@ -210,12 +210,10 @@ func TestCharactersKept(t *testing.T) {
 	}
 	special := string(runes)
 	esc := rtf.String()
-	src := wrap(`{\info{\title T`+esc+`}}{\*\docvar {V}{`+esc+`}}`+
-		`\pard a`+esc+`b\par`+
-		`\trowd\cellx1000\pard\intbl c`+esc+`d\cell\row`+
-		`\pard {\field{\*\fldinst MERGEFIELD x`+esc+`}{\fldrslt y}}\par`) +
-		// \zwbo, \zwnbo, \zwj, \zwnj, \rtlmark and \ltrmark are kept too.
-		""
+	src := wrap(`{\info{\title T` + esc + `}}{\*\docvar {V}{` + esc + `}}` +
+		`\pard a` + esc + `b\par` +
+		`\trowd\cellx1000\pard\intbl c` + esc + `d\cell\row` +
+		`\pard {\field{\*\fldinst MERGEFIELD x` + esc + `}{\fldrslt y}}\par`)
 	doc := extract(t, src, nil)
 	bs := blocks(doc)
 	if len(bs) != 4 {
@@ -239,6 +237,7 @@ func TestCharactersKept(t *testing.T) {
 		t.Errorf("warnings %s", dump(doc))
 	}
 
+	// \zwbo, \zwnbo, \zwj, \zwnj, \rtlmark and \ltrmark are kept too.
 	words := extract(t, wrap(`\pard a\zwbo\zwnbo\zwj\zwnj\rtlmark\ltrmark b\par`), nil)
 	if got, want := blocks(words)[0].Text, "a"+string([]rune{0x200B, 0xFEFF, 0x200D, 0x200C, 0x200F, 0x200E})+"b"; got != want {
 		t.Errorf("control words: %+q, want %+q", got, want)

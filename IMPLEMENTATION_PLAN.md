@@ -29,11 +29,10 @@ Module `github.com/AOShei/go-fast-rtf`, package `gofastrtf`. Extracts RTF
    `\tab`. Status: done.
 3. **Notes, fields, metadata, pictures, objects** — `\info` metadata;
    footnotes; annotations as `note` comments; field results in text,
-   instructions as invisible `note` blocks; hyperlinks as spans; `\pict`
+   instructions as `note` blocks; hyperlinks as spans; `\pict`
    image blocks; `\object`/`\objdata` handed to `ExtractChild`. Status: done.
-4. **Hidden text** — `\v`, `\webhidden` (invisible), `\fsN` below 2 pt
-   (tiny), `\cf` against `\highlight`/`\chcbpat`/`\cb`/paragraph shading/page
-   background (low contrast), `\deleted` as deletion notes; `\*\generator`,
+4. **Hidden text** — `\v` and further visibility checks (superseded by
+   phase 9), `\deleted` as deletion notes; `\*\generator`,
    `\docvar`, `\*\userprops` and bytes after the document's closing brace in
    the stored part. Status: done.
 5. **CLI, README, fuzzing** — `cmd/gofastrtf`, README, `FuzzExtract` and
@@ -51,31 +50,26 @@ checked byte by byte against Python's codecs by the orchestrator.
    - Thematic breaks (core df335f0): an empty body paragraph whose only
      border is a styled bottom border, not next to a paragraph with the same
      borders, not holding `\page`/`\sect`; `Origin` inferred.
-   - Hidden-text properties (`\v`, `\webhidden`, `\cf`, `\cb`,
-     `\highlight`, `\chcbpat`, `\fs`) set by paragraph and character styles,
-     through `\sbasedon`.
+   - Character properties set by paragraph and character styles, through
+     `\sbasedon` (only `\v` is read now; see phase 9).
 
 7. **Phase 3** (phase-3-hidden-signal branch, core 4de43b1) — Status: done.
-   The hidden flag is a signal of suspicious hiding only. Field
-   instructions, index/TOC entries (now `XE`/`TC` field notes) and the
-   stored part (no longer `Part.Hidden`) are unflagged; an item over
-   `OutlierWords` (30) words is flagged invisible with
-   `rtf.unshown_outlier`. A clean-document test asserts no flag at all.
+   Superseded by phase 9. Field instructions, index/TOC entries (now
+   `XE`/`TC` field notes) and the stored part stopped carrying a reason.
 
-8. **Review 1** (review-1 branch, core 17a0e50) — Status: done.
-   Core's `UnshownOutlier` (30 words or 300 non-space characters) and its
-   `text.unshown_outlier` warning replace the library's own counter,
-   constant and code. Text after the closing brace is always flagged
-   `invisible`. A corpus test runs over the public corpus.
+8. **Review 1** (review-1 branch, core 17a0e50) — Status: done. Budget
+   bounds, the custom-property limit and Word 6/95 drawing-object text
+   (all kept), and a corpus test over the public corpus. Its visibility
+   rules are superseded by phase 9; CHANGELOG.md lists them.
 
 9. **Declared, not judged** (declared-not-judged branch, core 05bbddb,
    schema 0.2) — Status: done. **Supersedes the hidden-text parts of
    phases 4, 6, 7 and 8.** The library reports only what the file
    declares: `hidden` for `\v` (direct or through `\s`/`\cs` styles and
-   `\sbasedon`); `no_ink`: none in RTF. Removed: `tiny`, `low_contrast`
-   (with colour table, `\cbpat`, `\clcbpat`, text-box fill and page
-   background reading), the invisible-character scan, the outlier rule,
-   `HiddenChecked`, `text.hidden`/`text.unshown_outlier`. Text after the
+   `\sbasedon`); `no_ink`: none in RTF. Removed: the size and colour
+   checks (with colour table, `\cbpat`, `\clcbpat`, text-box fill and page
+   background reading), the invisible-character scan, the proportion rule,
+   `HiddenChecked` and their warnings (CHANGELOG.md lists them). Text after the
    closing brace is stored `after_end` with `input.trailing_data`.
    `\webhidden`, field instructions, index/TOC entries and deletions carry
    no reason. See `DECLARED_REPORT_RTF.md` in the workspace root.

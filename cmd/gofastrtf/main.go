@@ -35,19 +35,19 @@ func main() {
 	os.Exit(run(ctx, os.Args[1:], os.Stdout, os.Stderr))
 }
 
-// hiddenFlag is --exclude-display: given alone it stands for every reason,
+// displayFlag is --exclude-display: given alone it stands for every reason,
 // and with a value for the reasons named.
-type hiddenFlag struct{ reasons gofastcore.Display }
+type displayFlag struct{ reasons gofastcore.Display }
 
-func (h *hiddenFlag) IsBoolFlag() bool { return true }
-func (h *hiddenFlag) String() string {
+func (h *displayFlag) IsBoolFlag() bool { return true }
+func (h *displayFlag) String() string {
 	if h.reasons == 0 {
 		return ""
 	}
 	return h.reasons.String()
 }
 
-func (h *hiddenFlag) Set(v string) error {
+func (h *displayFlag) Set(v string) error {
 	switch v {
 	case "true", "all":
 		h.reasons = gofastcore.DisplayAny
@@ -86,7 +86,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		furniture = flags.Bool("furniture", false, "in Markdown and text, include running headers and footers")
 		stored    = flags.Bool("stored", false, "in Markdown and text, include the stored part (document variables, custom properties, the generator, data after the end)")
 	)
-	var exclude hiddenFlag
+	var exclude displayFlag
 	flags.Var(&exclude, "exclude-display", "in Markdown and text, leave out what the file declares is not shown: all of it, or with =reasons only those reasons, such as hidden (JSON always has everything, with its reasons)")
 	flags.Usage = func() {
 		fmt.Fprintln(stderr, "usage: gofastrtf [flags] file-or-directory...")

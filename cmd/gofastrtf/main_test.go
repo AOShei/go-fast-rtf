@@ -112,7 +112,7 @@ func TestExcludeDisplayFlag(t *testing.T) {
 	if code := run(context.Background(), []string{"-exclude-display=unknown", "x.rtf"}, &out, &errOut); code != 2 {
 		t.Errorf("=unknown: exit %d", code)
 	}
-	if !strings.Contains(errOut.String(), "hidden") || !strings.Contains(errOut.String(), "no_ink") {
+	if !strings.Contains(errOut.String(), "the reasons are hidden, no_ink\n") {
 		t.Errorf("=unknown: stderr %q does not list the reasons", errOut.String())
 	}
 }

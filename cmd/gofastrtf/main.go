@@ -61,7 +61,7 @@ func (h *displayFlag) Set(v string) error {
 		return err
 	}
 	if !reasons.Valid() || reasons == 0 || reasons&gofastcore.DisplayUnknown != 0 {
-		return fmt.Errorf("unknown reason in %q; the reasons are %s", v, strings.ReplaceAll((gofastcore.DisplayAny&^gofastcore.DisplayUnknown).String(), "+", ", "))
+		return fmt.Errorf("unknown reason in %q; the reasons are %s", v, strings.ReplaceAll((gofastcore.DisplayHidden|gofastcore.DisplayNoInk).String(), "+", ", "))
 	}
 	h.reasons = reasons
 	return nil

@@ -129,7 +129,12 @@ that is out of proportion for its kind, as core's `UnshownOutlier` decides
 (more than 30 words, or more than 300 characters other than white space),
 is flagged `invisible`, that item alone, and its part carries the warning
 `text.unshown_outlier`. The words of an index or table-of-contents entry
-are counted without the `XE` or `TC` in front.
+are counted without the `XE` or `TC` in front. One kind of data is exempt:
+the addresses in a field instruction (tokens with `://` or `@`, such as the
+link of a `HYPERLINK` field, which Safe Links and search addresses make
+routinely longer than 300 characters) are left out when the instruction
+is measured; the rest of it, a screen tip for instance, is held to the
+rule.
 
 Text after the document's closing brace is different: clean files never
 have any, so it is flagged `invisible` whatever its length, and the

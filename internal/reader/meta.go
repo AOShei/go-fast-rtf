@@ -312,18 +312,29 @@ func (r *reader) openField(g *group) {
 		if top.flow == nil {
 			return
 		}
-		top.flow.after = append(top.flow.after, r.unshownNote(code))
+		top.flow.after = append(top.flow.after, r.unshownNoteOf(code, linksOut(code)))
 	}
 }
 
-// unshownNote makes the note of a field instruction or an index or
-// table-of-contents entry: unflagged, unless it is an outlier. The words
-// counted are those of the instruction or of the entry, without the name
-// of the field an entry stands for.
-func (r *reader) unshownNote(text string) gofastcore.Block {
-	return r.unshownNoteOf(text, text)
+// linksOut leaves out of a field instruction the addresses it holds
+// (tokens with "://" or "@"), which are routinely long, for the outlier
+// rule; the rest of the instruction is held to it. go-fast-email does the
+// same with the links of mail.
+func linksOut(code string) string {
+	var keep []string
+	for tok := range strings.FieldsSeq(code) {
+		if strings.Contains(tok, "://") || strings.Contains(tok, "@") {
+			continue
+		}
+		keep = append(keep, tok)
+	}
+	return strings.Join(keep, " ")
 }
 
+// unshownNoteOf makes the note of a field instruction or an index or
+// table-of-contents entry: unflagged, unless counted is an outlier.
+// counted is the instruction without its addresses, or the entry without
+// the name of the field it stands for.
 func (r *reader) unshownNoteOf(text, counted string) gofastcore.Block {
 	b := gofastcore.Block{Kind: gofastcore.KindNote, Text: text,
 		Attrs: map[string]string{gofastcore.AttrNoteType: gofastcore.NoteField}}

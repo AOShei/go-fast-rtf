@@ -11,7 +11,8 @@ import (
 
 // displayOf returns what the file declares about the display of text with
 // character properties c: DisplayHidden for hidden text (\v), set on the
-// run or by a style. Nothing else is declared in RTF. \webhidden hides text
+// run or by a style. The other declaration in RTF, a shape's fHidden, is
+// applied to the shape's blocks when it ends (openShape). \webhidden hides text
 // only in Web Layout and on web pages, a condition, so it is not reported.
 func displayOf(c *chr) gofastcore.Display {
 	if c.hidden {

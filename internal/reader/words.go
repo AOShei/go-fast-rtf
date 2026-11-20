@@ -378,7 +378,7 @@ func (r *reader) word(t token.Token) {
 		r.openShape(g)
 	case "shpinst", "shppict", "ud", "result":
 	case "shptxt", "dptxbxtext": // \dptxbxtext: the text box of a Word 6/95 drawing object
-		f := &flow{r: r, kind: flowBox, parent: g.flow}
+		f := &flow{r: r, kind: flowBox, parent: g.flow, shape: r.shape}
 		g.flow, g.buf, g.dest, g.p = f, nil, dBody, defaultPara()
 		g.onClose = f.end
 	case "sp":

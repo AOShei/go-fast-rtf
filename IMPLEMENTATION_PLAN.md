@@ -73,6 +73,9 @@ checked byte by byte against Python's codecs by the orchestrator.
    closing brace is stored `after_end` with `input.trailing_data`.
    `\webhidden`, field instructions, index/TOC entries and deletions carry
    no reason. See `DECLARED_REPORT_RTF.md` in the workspace root.
+   Follow-up decisions (2026-11-20, Andrew): a shape's `fHidden` set to
+   true gives its text box and pictures `hidden`; the command has the
+   series' render flags (`COMMAND_FLAGS.md`), with `-part-markers`.
 
 ## Next, in order
 
@@ -81,5 +84,3 @@ checked byte by byte against Python's codecs by the orchestrator.
 3. Code pages 437, 850 and Johab (1361), from generated tables.
 4. A small corpus of RTF written by Word, LibreOffice and WordPad, made by
    the user, to compare against.
-5. If Andrew decides so: the shape property `fHidden` as `hidden` (open
-   question in the declared report).

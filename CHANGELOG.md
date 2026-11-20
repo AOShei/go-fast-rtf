@@ -10,7 +10,9 @@ no longer judges whether text can be seen.
 - **Renamed (core):** `Block.Hidden`, `Span.Hidden`, `Table.Hidden` are
   `Display`; JSON `"hidden"` is `"display"`. The one reason RTF declares is
   `hidden` (formerly `invisible`): `\v`, on the run or through a paragraph
-  or character style.
+  or character style. Also `hidden`: the text box and pictures of a shape
+  whose property `fHidden` is true (`{\sp{\sn fHidden}{\sv 1}}`), and of
+  the shapes in such a group.
 - **Removed checks:** `tiny` (`\fs` under 2 points); `low_contrast` (the
   text colour against highlight, character and paragraph shading, table
   cell shading, the fill of a text box and the page background), with the

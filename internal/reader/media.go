@@ -14,7 +14,15 @@ import (
 type shape struct {
 	prev   *shape
 	alt    string
+	hidden bool // fHidden: the shape declares itself hidden
 	images []gofastcore.Block
+	boxed  []boxed // the blocks of its text box (\shptxt), and of shapes in it
+}
+
+// boxed is a block of a shape's text box and the flow it goes to.
+type boxed struct {
+	parent *flow
+	b      gofastcore.Block
 }
 
 type spState struct {
@@ -27,13 +35,59 @@ func (r *reader) openShape(g *group) {
 	r.shape = s
 	g.onClose = func() {
 		r.shape = s.prev
+		for i := range s.boxed {
+			if s.hidden {
+				displayWhole(&s.boxed[i].b, gofastcore.DisplayHidden)
+			}
+			if s.prev != nil {
+				// A shape in a group: the group may be hidden too.
+				s.prev.boxed = append(s.prev.boxed, s.boxed[i])
+			} else if p := s.boxed[i].parent; p != nil {
+				p.after = append(p.after, s.boxed[i].b)
+			} else {
+				r.add(s.boxed[i].b)
+			}
+		}
 		top := r.top()
 		for _, b := range s.images {
 			if b.Text == "" && s.alt != "" {
 				b.Text = s.alt
 			}
+			if s.hidden {
+				displayWhole(&b, gofastcore.DisplayHidden)
+			}
 			r.deliver(top.flow, b)
 		}
+	}
+}
+
+// displayWhole gives the whole of block b the reason d, taking it off the
+// spans and table regions that had it for part of the block.
+func displayWhole(b *gofastcore.Block, d gofastcore.Display) {
+	b.Display |= d
+	spans := b.Spans[:0]
+	for _, s := range b.Spans {
+		s.Display &^= d
+		if s.Display != 0 || s.Style != 0 || s.Href != "" {
+			spans = append(spans, s)
+		}
+	}
+	if len(spans) == 0 {
+		spans = nil
+	}
+	b.Spans = spans
+	if t := b.Table; t != nil {
+		regions := t.Display[:0]
+		for _, c := range t.Display {
+			c.Display &^= d
+			if c.Display != 0 {
+				regions = append(regions, c)
+			}
+		}
+		if len(regions) == 0 {
+			regions = nil
+		}
+		t.Display = regions
 	}
 }
 
@@ -66,6 +120,10 @@ func (r *reader) shapeProp(name, value string) {
 		} else if r.shape != nil {
 			r.shape.alt = value
 		}
+	case name == "fHidden" && r.pict == nil && r.shape != nil:
+		// A boolean: 0 is false, anything else true; the last one counts.
+		n, err := strconv.Atoi(value)
+		r.shape.hidden = err == nil && n != 0
 	}
 }
 

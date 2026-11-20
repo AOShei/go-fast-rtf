@@ -160,6 +160,50 @@ func TestCleanDocumentNoReason(t *testing.T) {
 	}
 }
 
+// TestShapeHidden checks the shape property fHidden: {\sv 1} gives the
+// text of the shape's text box the reason hidden, wherever the property
+// stands in the shape and for shapes in a hidden group; {\sv 0} gives
+// nothing. The text stays where it was.
+func TestShapeHidden(t *testing.T) {
+	box := func(props, text string) string {
+		return `\pard Before{\shp{\*\shpinst{\sp{\sn shapeType}{\sv 202}}` + props + `{\shptxt \pard ` + text + `\par}}} after\par`
+	}
+	reasons := func(src string) map[string]gofastcore.Display {
+		doc := extract(t, wrap(src), nil)
+		got := map[string]gofastcore.Display{}
+		for _, b := range doc.AllBlocks() {
+			got[b.Text] = b.Display
+		}
+		return got
+	}
+	hidden := `{\sp{\sn fHidden}{\sv 1}}`
+	got := reasons(box(hidden, `Box {\b text}`))
+	if got["Box text"] != gofastcore.DisplayHidden || got["Before after"] != 0 {
+		t.Errorf("fHidden 1: %v", got)
+	}
+	got = reasons(box(`{\sp{\sn fHidden}{\sv 0}}`, `Box text`))
+	if d, ok := got["Box text"]; !ok || d != 0 {
+		t.Errorf("fHidden 0: %v", got)
+	}
+	// The property after the text box.
+	got = reasons(`\pard X{\shp{\*\shpinst{\shptxt \pard Late\par}` + hidden + `}}\par`)
+	if got["Late"] != gofastcore.DisplayHidden {
+		t.Errorf("fHidden after the text: %v", got)
+	}
+	// Partly \v text in a hidden box: the reason covers the whole block.
+	doc := extract(t, wrap(box(hidden, `Some {\v v} text`)), nil)
+	for _, b := range doc.AllBlocks() {
+		if b.Text == "Some v text" && (b.Display != gofastcore.DisplayHidden || len(b.Spans) != 0) {
+			t.Errorf("partly \\v: %+v", b)
+		}
+	}
+	// A hidden group of shapes.
+	got = reasons(`\pard X{\shpgrp{\*\shpinst` + hidden + `{\shp{\*\shpinst{\shptxt \pard Inner\par}}}}}\par`)
+	if got["Inner"] != gofastcore.DisplayHidden {
+		t.Errorf("hidden group: %v", got)
+	}
+}
+
 // TestAfterEnd checks the data after the document's closing brace: its
 // text is in the stored part as after_end, with no reason, and the stored
 // part says in input.trailing_data how many bytes follow the end.

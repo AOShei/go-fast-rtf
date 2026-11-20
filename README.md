@@ -86,7 +86,7 @@ file states outright that its text is not shown. RTF declares this:
 
 | Reason | Declared by |
 |---|---|
-| `hidden` | `\v` (hidden text) on the run, or set by a paragraph style (`\sN`) or a character style (`\csN`) of the `\stylesheet`, followed through `\sbasedon`. The style's `\v` applies where `\s` or `\cs` stands; `\v0` written after it wins, and `\plain` ends it |
+| `hidden` | `\v` (hidden text) on the run, or set by a paragraph style (`\sN`) or a character style (`\csN`) of the `\stylesheet`, followed through `\sbasedon`. The style's `\v` applies where `\s` or `\cs` stands; `\v0` written after it wins, and `\plain` ends it. Also the shape property `fHidden` set to true (`{\sp{\sn fHidden}{\sv 1}}`, wherever it stands in the shape): every block of the shape's text box (`\shptxt`) and its pictures carry `hidden` on the whole block, and so do those of the shapes in a hidden group (`\shpgrp`). `{\sv 0}` gives nothing |
 | `no_ink` | none. RTF has no control that draws text with no paint: character colour (`\cf`) is a colour-table entry with no transparency, and outline, emboss and shadow effects still draw the letters |
 
 A hidden passage of a paragraph is a span with `display` set; a paragraph

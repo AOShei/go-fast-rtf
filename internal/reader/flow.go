@@ -37,6 +37,7 @@ type flow struct {
 	r      *reader
 	kind   flowKind
 	parent *flow
+	shape  *shape // the shape a text box belongs to, if any
 
 	text      []byte
 	runs      []run
@@ -337,7 +338,12 @@ func (f *flow) emit(b gofastcore.Block) {
 		}
 		f.r.add(b)
 	case flowBox:
-		if f.parent != nil {
+		if f.shape != nil {
+			// Held until the shape ends: its properties, fHidden among
+			// them, may follow its text.
+			f.r.holdBlock(&b)
+			f.shape.boxed = append(f.shape.boxed, boxed{parent: f.parent, b: b})
+		} else if f.parent != nil {
 			f.r.holdBlock(&b)
 			f.parent.after = append(f.parent.after, b)
 		} else {

@@ -49,8 +49,8 @@ const (
 //
 //	input.active_content      a DDE or DDEAUTO field, or an ActiveX control
 //	input.external_reference  a linked object, an INCLUDEPICTURE,
-//	                          INCLUDETEXT, LINK or IMPORT field, a remote
-//	                          template
+//	                          INCLUDETEXT, INCLUDE, LINK or IMPORT field, a
+//	                          remote template
 //	input.repaired            the file ends before its groups are closed
 //	text.tracked_changes      the document has tracked changes
 //	text.unmapped_glyphs      bytes in a code page that is not decoded, or

@@ -5,9 +5,8 @@ into the shared go-fast document model,
 [`gofastcore.Document`](https://github.com/AOShei/go-fast-core). Standard
 library and go-fast modules only.
 
-**Status: first implementation (phase 1), not tagged.** See
-[`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) for what is done and what
-is next.
+**Status: v0.1.0 (not yet tagged).** Built on go-fast-core schema 0.2
+(core `d4cd8e2`).
 
 ## Using it
 
@@ -28,7 +27,12 @@ fmt.Println(doc.Markdown())
 `gofastrtf.Extractor` implements `gofastcore.Extractor`; its one field,
 `MaxGroupDepth`, bounds how deeply groups may nest. The file is read as a
 stream: only the document being built, and the picture or object being
-read, are held in memory.
+read, are held in memory. The exception is a document that declares
+`\fromhtml1`: its encapsulated HTML is held in memory whole, up to
+`Limits.MaxDecodedBytes`, to be handed to `Options.Child`. The input is
+read twice: a first pass looks for `\fromhtml1` and de-encapsulates the
+HTML (it stops at the first content of a document that does not declare
+it), then the RTF is read from the start.
 
 The format is decided from the content: the file must begin, after white
 space or a byte order mark, with `{\rtf`. Anything else is `ErrMalformed`.
@@ -56,7 +60,7 @@ never shows, a second part of kind `stored` follows it (see below);
 | `\shptxt`, `\dptxbxtext` | the text of a text box (of a shape, or of a Word 6/95 drawing object `\do`): its blocks follow the paragraph the shape is in |
 | `\object` | the object's `\result` is read as content; the embedded data (`\objdata`, an OLE 1.0 stream) is handed to `Options.Child`, unpacked from a `Package` to the file it packages; linked objects are listed, not read |
 | paragraph borders (`\brdrb`, `\box`, ...) | not read. An empty paragraph with only a bottom border gives no block, as any empty paragraph: a border is not a declared break, and no `thematic_break` is inferred from it. A bordered paragraph with text, and a `* * *` paragraph, stay paragraphs. RTF has no paragraph-level horizontal-rule control word; a `thematic_break` is emitted only where the file itself declares one: Word's horizontal line, a shape or inline picture with the property `fHorizRule` (`Origin` `native`, in place of the line's picture) |
-| `\fromhtml1` (HTML encapsulated by Outlook, [MS-OXRTFEX]) | the HTML is de-encapsulated (the `\*\htmltag` groups and the text outside `\htmlrtf` runs; `\par` and `\line` as CRLF, `\tab` as a tab, `\'hh` as that byte, `\uN` as UTF-8 under `\ansicpg65001` and as `&#N;` otherwise) and handed to `Options.Child` as `body.html`, `text/html; charset=` the WHATWG label of `\ansicpg`; it is the first of `Children`. When the child comes back extracted, the body gives no blocks (the HTML is the message; the RTF only repeats it); otherwise the RTF is read as usual. This library does not read HTML: the caller's `Options.Child` must, as go-fast-email's command does; `gofastrtf` does not, so it shows the RTF reading. `\fromtext` is read as RTF |
+| `\fromhtml1` (HTML encapsulated by Outlook, [MS-OXRTFEX]) | the HTML is de-encapsulated (the `\*\htmltag` groups and the text outside `\htmlrtf` runs; `\par` and `\line` as CRLF, `\tab` as a tab, `\'hh` as that byte, `\uN` as UTF-8 under `\ansicpg65001` and as `&#N;` otherwise) and handed to `Options.Child` as `body.html`, `text/html; charset=` the WHATWG label of `\ansicpg` (no charset for a code page with none); it is the first of `Children`. When the child comes back extracted with blocks, the body gives no blocks (the HTML is the message; the RTF only repeats it); otherwise the RTF is read as usual. This library does not read HTML: the caller's `Options.Child` must, as go-fast-email's command does; `gofastrtf` does not, so it shows the RTF reading. `\fromtext` is read as RTF |
 | `\header*`, `\footer*` | `header`, `footer` blocks where they stand |
 | `\*\formfield` with `\*\ffl` | `note` of type `choices`, one value per line, `Attrs["field"]` from `\*\ffname`; it follows the paragraph |
 | `\*\bkmkstart` at the start of a paragraph | `Loc.Anchor` |
@@ -152,7 +156,7 @@ Besides the shared codes (`limit.exceeded`, `part.no_text`,
 | `input.external_reference` | warning | a linked object, an `INCLUDEPICTURE`, `INCLUDETEXT`, `INCLUDE`, `LINK` or `IMPORT` field, a remote `\*\template`; nothing was fetched |
 | `input.active_content` | warning | a `DDE` or `DDEAUTO` field, an ActiveX control (`\objocx`); nothing was run |
 | `text.tracked_changes` | info | the document has insertions (`\revised`) or deletions (`\deleted`) |
-| `text.unmapped_glyphs` | warning | bytes in a code page that is not decoded, bytes their code page leaves undefined, unpaired surrogates |
+| `text.unmapped_glyphs` | warning | bytes in a code page that is not decoded, bytes their code page leaves undefined, bytes above 0x7F in a Symbol font (`\fcharset2`) other than 0xB7, unpaired surrogates |
 | `image.unsupported_encoding` | warning | with `ImagesData`, a picture in a format whose bytes cannot be given as a file (device-dependent bitmap, OS/2 metafile, no format named) |
 | `input.trailing_data` | info | data follows the document's closing brace; the message gives how many bytes. Its text is in the stored part as `after_end`. On the document when there is no stored part to carry it |
 | `rtf.unread_content` | warning | content this version does not read: equations (`\mmath`) |
@@ -169,19 +173,27 @@ Besides the shared codes (`limit.exceeded`, `part.no_text`,
 | `Limits.MaxDepth` | 4 (core) | nesting of embedded documents |
 
 Smaller fixed bounds: a field instruction holds 32 KiB, a metadata item
-64 KiB, a document variable's value 64 KiB, 16,384 document variables and
-as many custom properties, the text after the document's end
-1 MiB; a table has at most 1,048,576 rows and a row definition 4096 cells.
+64 KiB, the generator (`\*\generator`) 4 KiB, a document variable's or
+custom property's value 64 KiB, a tracked deletion 1 MiB; 16,384 document
+variables and as many custom properties are kept; the text after the
+document's end holds 1 MiB; a table has at most 1,048,576 rows, and a row
+definition gives the merges of at most 4,096 cells (`\cellx`). These
+bounds cut what lies past them without a `limit.exceeded` warning.
 Without `ImagesData`, at most 64 KiB of a picture is decoded, to read its
 size.
 
 ## What is not read
 
 - Code pages other than those listed above (437, 850, Johab 1361, ...).
+- Fonts with `\fcharset2` (Symbol and other symbol fonts) are not mapped
+  to the characters they draw: bytes below 0x80 are given as ASCII, and
+  bytes above 0x7F are U+FFFD with `text.unmapped_glyphs`, except 0xB7,
+  a bullet (U+2022).
 - List numbers are not computed: the marker is what `\listtext` or
   `\pntext` says, which Word always writes.
 - Equations (`\mmath`), the default text and help text of form fields,
   drawing objects other than text boxes and pictures, `\pmmetafile` data.
+- WordArt: its text, the shape property `gtextUNICODE`, is not read.
 - Bold, italic and other inline styles set only by a style are not given as
   spans (a style's `\v` is read; see above).
 
@@ -193,8 +205,9 @@ gofastrtf report.rtf                       # JSON
 gofastrtf -format markdown -exclude-display docs/
 ```
 
-`-images`, `-spans`, `-max-group-depth`, `-max-decoded-bytes`,
-`-max-text-bytes`, `-quiet`, `-o`; `gofastrtf -h` lists them. The render
+`-format` (`json`, the default, `markdown` or `text`), `-images`,
+`-spans`, `-max-group-depth`, `-max-decoded-bytes`, `-max-text-bytes`,
+`-quiet`, `-o`, `-version`; `gofastrtf -h` lists them. The render
 flags are the same in every go-fast command and affect Markdown and text
 only; JSON always has everything:
 

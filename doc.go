@@ -17,9 +17,20 @@
 // an outline level; list items from \listtext and \pntext, whose text is the
 // marker, and \ls; tables from \trowd, \cell and \row, with merges; footnotes
 // and endnotes are footnote blocks after their paragraph; comments, tracked
-// deletions and field instructions are note blocks.
+// deletions and field instructions are note blocks; Word's horizontal line
+// (the shape property fHorizRule) is a thematic_break with Origin native.
 //
-// Everything the file contains is extracted. The one display declaration
-// RTF has, hidden text (\v, on the run or through a style), is reported as
-// gofastcore.DisplayHidden; nothing else about visibility is judged.
+// Everything the file contains is extracted. RTF's display declarations,
+// hidden text (\v, on the run or through a style) and a shape's fHidden,
+// are reported as gofastcore.DisplayHidden; nothing else about visibility
+// is judged.
+//
+// A document that declares \fromhtml1 (HTML mail as Outlook stores it,
+// [MS-OXRTFEX]) has its HTML de-encapsulated and handed to Options.Child
+// as HTMLName (body.html), with the MIME type text/html and, as its
+// charset, the WHATWG label of the document's code page (\ansicpg, or
+// 1252 when none is named) when that code page has one. It is the first
+// of the document's children. When the child comes back with blocks, the
+// body gives none; otherwise the RTF is read as usual. This library does
+// not read HTML itself.
 package gofastrtf

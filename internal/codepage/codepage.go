@@ -5,13 +5,14 @@
 // The single-byte Windows code pages 874 and 1250 to 1258 and the Mac Roman
 // page (10000) are decoded from tables, and so are the double-byte code
 // pages 932, 936, 949 and 950, a character at a time, lead and trail byte
-// together. A character a table does not map becomes U+FFFD. Any other
-// code page is not decoded, byte by byte above 0x7F.
+// together; UTF-8 (65001) is decoded too. A character a table does not map
+// becomes U+FFFD. Any other code page is not decoded, byte by byte above
+// 0x7F.
 package codepage
 
 // Symbol is the pseudo code page of a font with \fcharset2 (Symbol). Its
-// bytes are the font's glyph numbers; the few that stand for bullets are
-// mapped, the rest are not decoded.
+// bytes are the font's glyph numbers; above 0x7F, the one that stands for
+// a bullet (0xB7) is mapped and the rest are not decoded.
 const Symbol = -2
 
 // Known reports whether bytes in code page cp are decoded.

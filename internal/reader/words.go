@@ -357,9 +357,7 @@ func (r *reader) word(t token.Token) {
 		g.onClose = func() {
 			if f != nil && len(f.text) == 0 && f.anchor == "" {
 				f.anchor = cleanText(b.String())
-				if f.anchor != "" {
-					r.cutBuf(atBody, "bookmark names are cut at", b)
-				}
+				r.cutBuf(atBody, "bookmark names are cut at", b)
 			}
 		}
 
@@ -447,10 +445,12 @@ func (r *reader) word(t token.Token) {
 				case name == "ffname":
 					ff.name = s
 					r.cutBuf(atBody, "form field names are cut at", b)
-				case s == "":
 				case len(ff.choices) < maxChoices:
-					ff.choices = append(ff.choices, s)
 					r.cutBuf(atBody, "form field choices are cut at", b)
+					if s != "" {
+						ff.choices = append(ff.choices, s)
+					}
+				case s == "":
 				default:
 					r.cutItems(atBody, "form field choices past %d in one field were not read", maxChoices)
 				}
@@ -522,7 +522,7 @@ func (r *reader) fontWord(name string, v int32) {
 			if len(r.fonts) < maxDefs {
 				r.fonts[v] = font{}
 			} else {
-				r.fontDropped = true // counted when its entry ends (close)
+				r.fontDropped = true // counted where its entry ends: ";" (text) or close
 			}
 		}
 	case "fcharset":
@@ -690,13 +690,16 @@ func (r *reader) noteFlow(g *group, kind flowKind) {
 	f := &flow{r: r, kind: kind, parent: parent}
 	if kind == flowNote {
 		f.author = r.atnAuthor
+		// The cut of the author is reported, also when only white space
+		// was kept and the ID is used instead.
 		cut := r.atnAuthorCut
+		if f.author == "" && (cut == nil || !cut.full) {
+			cut = r.atnIDCut
+		}
 		if f.author == "" {
-			f.author, cut = r.atnID, r.atnIDCut
+			f.author = r.atnID
 		}
-		if f.author != "" {
-			r.cutBuf(atBody, "comment authors are cut at", cut)
-		}
+		r.cutBuf(atBody, "comment authors are cut at", cut)
 		r.atnAuthor, r.atnID, r.atnAuthorCut, r.atnIDCut = "", "", nil, nil
 	}
 	g.flow, g.buf, g.dest, g.p = f, nil, dBody, defaultPara()
@@ -752,6 +755,11 @@ func (r *reader) docVar(g *group) {
 	g.kids = []*strbuf{name, value}
 	g.onClose = func() {
 		n, v := cleanText(name.String()), cleanText(value.String())
+		kept := len(r.docvars) < maxStoredItems
+		if kept {
+			r.cutBuf(atStore, "document variable names are cut at", name)
+			r.cutBuf(atStore, "document variable values are cut at", value)
+		}
 		text := n + ": " + v
 		switch {
 		case n == "" && v == "":
@@ -761,10 +769,8 @@ func (r *reader) docVar(g *group) {
 		case n == "":
 			text = v
 		}
-		if len(r.docvars) < maxStoredItems {
+		if kept {
 			r.docvars = append(r.docvars, [2]string{text, n})
-			r.cutBuf(atStore, "document variable names are cut at", name)
-			r.cutBuf(atStore, "document variable values are cut at", value)
 		} else {
 			r.cutItems(atStore, "document variables past %d were not read", maxStoredItems)
 		}
@@ -788,6 +794,11 @@ func (r *reader) userProps(g *group) {
 	g.onClose = func() {
 		for _, p := range r.props {
 			n, v := cleanText(p[0].String()), cleanText(p[1].String())
+			kept := len(r.userprops) < maxStoredItems
+			if kept {
+				r.cutBuf(atStore, "custom property names are cut at", p[0])
+				r.cutBuf(atStore, "custom property values are cut at", p[1])
+			}
 			if n == "" && v == "" {
 				continue
 			}
@@ -795,10 +806,8 @@ func (r *reader) userProps(g *group) {
 			if v == "" {
 				text = n
 			}
-			if len(r.userprops) < maxStoredItems {
+			if kept {
 				r.userprops = append(r.userprops, [2]string{text, n})
-				r.cutBuf(atStore, "custom property names are cut at", p[0])
-				r.cutBuf(atStore, "custom property values are cut at", p[1])
 			} else {
 				r.cutItems(atStore, "custom properties past %d were not read", maxStoredItems)
 			}

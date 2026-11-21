@@ -147,11 +147,11 @@ func (f *flow) flushDel() {
 	text := cleanText(string(f.del))
 	lost := f.delLost
 	f.del, f.delLost, f.delFull = f.del[:0], 0, false
+	if lost > 0 { // even when what was kept is only white space
+		f.r.cut(atBody, "tracked deletions are cut at", maxDeletion, 1, lost)
+	}
 	if text == "" {
 		return
-	}
-	if lost > 0 {
-		f.r.cut(atBody, "tracked deletions are cut at", maxDeletion, 1, lost)
 	}
 	f.r.deleted++
 	attrs := map[string]string{gofastcore.AttrNoteType: gofastcore.NoteDeletion}

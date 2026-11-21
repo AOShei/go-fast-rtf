@@ -304,6 +304,14 @@ func TestDefinitionsCut(t *testing.T) {
 	wantCut(t, "body", ws, "styles past 65536 in the style sheet were not read", "(3)")
 	wantCut(t, "body", ws, "lists past 65536 in the list table were not read", "(2)")
 	wantCut(t, "body", ws, `list overrides (\ls) past 65536 were not read`, "(2)")
+
+	// A font table whose entries are not in groups: each ";" ends one.
+	fonts.Reset()
+	for i := range 1<<16 + 4 {
+		fmt.Fprintf(&fonts, `\f%d F;`, i)
+	}
+	doc = extract(t, `{\rtf1\ansi\deff0{\fonttbl`+fonts.String()+`}\pard Body\par}`, nil)
+	wantCut(t, "body", doc.Parts[0].Warnings, "fonts past 65536 in the font table were not read", "(4)")
 }
 
 // TestStoredTextCutWithoutStoredPart checks that the text limit reached in
@@ -374,4 +382,26 @@ func TestDeletionCutAtTheBound(t *testing.T) {
 	}
 	doc = extract(t, wrap(`\pard A{\deleted `+strings.Repeat("d", 1<<20-1)+`\u8364?e} B\par`), nil)
 	wantCut(t, "body", doc.Parts[0].Warnings, "tracked deletions are cut at 1048576 bytes: 1 cut, 4 bytes left out")
+}
+
+// TestCutOfWhiteSpace checks that a buffer cut where it holds only white
+// space is reported, though what is kept is empty once trimmed: the text
+// after the bound is lost all the same.
+func TestCutOfWhiteSpace(t *testing.T) {
+	ws := strings.Repeat(" ", 70_000)
+	src := wrap(`{\info{\title ` + ws + `Title}}{\*\docvar {n}{` + ws + `v}}` +
+		`\pard A{\deleted ` + strings.Repeat(" ", 1<<20+10) + `gone} {\field{\*\fldinst ` + strings.Repeat(" ", 40_000) + `PAGE}{\fldrslt 1}}\par`)
+	doc := extract(t, src, nil)
+	if doc.Metadata.Title != "" {
+		t.Fatalf("title %q", doc.Metadata.Title)
+	}
+	wantCut(t, "document", doc.Warnings, `metadata items (\info) are cut at 65536 bytes`)
+	wantCut(t, "body", doc.Parts[0].Warnings, "tracked deletions are cut at 1048576 bytes")
+	wantCut(t, "body", doc.Parts[0].Warnings, "field instructions are cut at 32768 bytes")
+	// The variable's name is kept, so there is a stored part.
+	stored := part(doc, gofastcore.PartStored)
+	if stored == nil {
+		t.Fatal("no stored part")
+	}
+	wantCut(t, "stored", stored.Warnings, "document variable values are cut at 65536 bytes")
 }

@@ -130,7 +130,12 @@ func (r *reader) openSp(g *group) {
 // value was read.
 func (r *reader) shapeProp(name, value string, buf *strbuf) {
 	switch {
-	case name == "wzDescription" && value != "":
+	case name == "wzDescription" && value == "":
+		if r.pict != nil || r.shape != nil {
+			// Not kept, being white space where it was cut.
+			r.cutBuf(atBody, altCut, buf)
+		}
+	case name == "wzDescription":
 		if r.pict != nil {
 			r.pict.alt, r.pict.altBuf = value, buf
 		} else if r.shape != nil {
@@ -471,7 +476,7 @@ func (r *reader) endObject(o *object) {
 	}
 	// The cut of a name is reported only where that name is the
 	// child's: a Package's label replaces both.
-	fromName := name != ""
+	fromName := name != "" || o.name.full
 	nameCut := func() {
 		if fromName {
 			r.cutBuf(atDoc, "embedded object names (\\objname) are cut at", o.name)

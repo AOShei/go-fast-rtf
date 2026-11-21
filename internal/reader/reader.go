@@ -4,6 +4,7 @@
 package reader
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -430,6 +431,9 @@ func (r *reader) open() {
 // the lists and the list overrides that are kept, each.
 const maxDefs = 1 << 16
 
+// fontsCut is what fonts past maxDefs are reported as.
+const fontsCut = "fonts past %d in the font table were not read; text in them is decoded in the document's code page"
+
 // maxCodePages bounds the code pages text.unmapped_glyphs counts one by
 // one; the rest are counted together.
 const maxCodePages = 64
@@ -451,7 +455,7 @@ func (r *reader) close() {
 	}
 	if g.dest == dFontTbl && r.fontDropped {
 		r.fontDropped = false
-		r.cutItems(atBody, "fonts past %d in the font table were not read; text in them is decoded in the document's code page", maxDefs)
+		r.cutItems(atBody, fontsCut, maxDefs)
 	}
 	r.stack = r.stack[:len(r.stack)-1]
 	if len(r.stack) == 0 {
@@ -523,6 +527,13 @@ func (r *reader) codePage() int {
 func (r *reader) text(data []byte) {
 	g := r.top()
 	switch g.dest {
+	case dFontTbl:
+		// A font table entry ends with ";", in a group of its own or not.
+		if r.fontDropped && bytes.IndexByte(data, ';') >= 0 {
+			r.fontDropped = false
+			r.cutItems(atBody, fontsCut, maxDefs)
+		}
+		return
 	case dPict:
 		if r.pict != nil {
 			r.pict.hex(data)
@@ -533,7 +544,7 @@ func (r *reader) text(data []byte) {
 			r.obj.hex(data)
 		}
 		return
-	case dColorTbl, dFontTbl, dListTable, dListOverrideTable, dWords, dRevTbl:
+	case dColorTbl, dListTable, dListOverrideTable, dWords, dRevTbl:
 		if g.dest == dRevTbl && g.buf != nil {
 			break
 		}

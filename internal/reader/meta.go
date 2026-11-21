@@ -145,11 +145,8 @@ func (r *reader) metadata() {
 	m := &r.doc.Metadata
 	get := func(name string) string {
 		if b, ok := r.info[name]; ok {
-			s := cleanText(strings.ReplaceAll(b.String(), "\n", " "))
-			if s != "" {
-				r.cutBuf(atDoc, "metadata items (\\info) are cut at", b)
-			}
-			return s
+			r.cutBuf(atDoc, "metadata items (\\info) are cut at", b)
+			return cleanText(strings.ReplaceAll(b.String(), "\n", " "))
 		}
 		return ""
 	}
@@ -184,9 +181,7 @@ func (r *reader) metadata() {
 		gen := strings.TrimSpace(strings.TrimSuffix(cleanText(r.generator.String()), ";"))
 		m.Application = gen
 		r.addStored(gen, "generator", "")
-		if gen != "" {
-			r.cutBuf(atStore, "the generator (\\*\\generator) is cut at", r.generator)
-		}
+		r.cutBuf(atStore, "the generator (\\*\\generator) is cut at", r.generator)
 	}
 	for _, dv := range r.docvars {
 		r.addStored(dv[0], gofastcore.StoredDocumentVariable, dv[1])
@@ -231,10 +226,10 @@ func (r *reader) openField(g *group) {
 	g.onClose = func() {
 		r.fields = r.fields[:len(r.fields)-1]
 		code := cleanText(strings.ReplaceAll(f.instr.String(), "\n", " "))
+		r.cutBuf(atBody, "field instructions are cut at", f.instr)
 		if code == "" {
 			return
 		}
-		r.cutBuf(atBody, "field instructions are cut at", f.instr)
 		if f.inInstr && f.parent != nil {
 			for _, c := range "{ " + code + " }" {
 				f.parent.instr.addRune(c)
@@ -278,11 +273,14 @@ func (r *reader) openEntry(g *group, name string) {
 	f := g.flow
 	g.buf = b
 	g.onClose = func() {
-		text := cleanText(strings.ReplaceAll(b.String(), "\n", " "))
-		if text == "" || f == nil {
+		if f == nil {
 			return
 		}
 		r.cutBuf(atBody, "index and table-of-contents entries are cut at", b)
+		text := cleanText(strings.ReplaceAll(b.String(), "\n", " "))
+		if text == "" {
+			return
+		}
 		f.after = append(f.after, r.fieldNote(entryWords[name]+" "+text))
 	}
 }

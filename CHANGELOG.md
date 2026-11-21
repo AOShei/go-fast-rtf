@@ -2,7 +2,7 @@
 
 ## v0.1.0 (not yet tagged)
 
-The first release. Built on go-fast-core schema 0.2 (core `d4cd8e2`).
+The first release. Built on go-fast-core schema 0.2 (core `4499357`).
 
 - Reads RTF (specification 1.9.1) into one `body` part, and a `stored`
   part for data the file keeps but never shows.
@@ -19,10 +19,9 @@ The first release. Built on go-fast-core schema 0.2 (core `d4cd8e2`).
   or through a style) and for a shape's `fHidden`.
 - Hands embedded objects (`\objdata`, unpacked from a `Package`) to
   `Options.Child`, and the HTML of a `\fromhtml1` document as `body.html`.
-- Stored data: core's kinds `field_code`, `document_variable` and
-  `after_end`, and this library's own `generator` and `custom_property`
-  (`StoredGenerator`, `StoredCustomProperty`, listed in
-  `StoredKindNames`).
+- Stored data, with core's kinds: `field_code`, `document_variable`,
+  `after_end`, `generator` and `custom_property` (the last two also as
+  `StoredGenerator` and `StoredCustomProperty` here).
 - The command `gofastrtf` prints JSON, Markdown or text (`-format`), with
   `-images`, `-spans`, `-max-group-depth`, `-max-decoded-bytes`,
   `-max-text-bytes`, `-quiet`, `-o`, `-version` and the series' render
@@ -30,6 +29,17 @@ The first release. Built on go-fast-core schema 0.2 (core `d4cd8e2`).
   `-exclude-display[=reasons]`.
 
 ## Before v0.1.0
+
+### Core 4499357: closed value sets, shared render flags
+
+- go-fast-core pinned at `4499357`. `generator` and `custom_property` are
+  now core's stored kinds (`gofastcore.StoredGenerator`,
+  `StoredCustomProperty`); `StoredGenerator` and `StoredCustomProperty`
+  here are the same values. `StoredKindNames` is removed: core's
+  `StoredKindNames()` lists every kind.
+- Command: the render flags are core's `AddRenderFlags`; their names,
+  values and errors are unchanged, and `-stored`'s help text gives core's
+  examples.
 
 Development history, newest first. The core pins named are those of the
 time.

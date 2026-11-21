@@ -142,17 +142,18 @@ func TestExcludeDisplayFlag(t *testing.T) {
 		{[]string{"-exclude-display=bogus"}, 0, true},
 	}
 	for _, c := range cases {
-		var d displayFlag
 		fs := flag.NewFlagSet("t", flag.ContinueOnError)
 		fs.SetOutput(io.Discard)
-		fs.Var(&d, "exclude-display", "")
+		rf := gofastcore.AddRenderFlags(fs)
 		err := fs.Parse(c.args)
+		var ro gofastcore.RenderOptions
+		rf.Apply(&ro)
 		if (err != nil) != c.err {
 			t.Errorf("%v: err %v", c.args, err)
 			continue
 		}
-		if err == nil && d.reasons != c.want {
-			t.Errorf("%v: got %v, want %v", c.args, d.reasons, c.want)
+		if err == nil && ro.ExcludeDisplay != c.want {
+			t.Errorf("%v: got %v, want %v", c.args, ro.ExcludeDisplay, c.want)
 		}
 	}
 	var out, errOut bytes.Buffer

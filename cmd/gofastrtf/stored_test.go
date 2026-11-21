@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/AOShei/go-fast-core"
 )
 
 // TestStoredFlag checks every row of the -stored table in COMMAND_FLAGS.md.
@@ -34,17 +36,18 @@ func TestStoredFlag(t *testing.T) {
 		{[]string{"-stored=,"}, false, nil, true},
 	}
 	for _, c := range cases {
-		var s storedFlag
 		fs := flag.NewFlagSet("t", flag.ContinueOnError)
 		fs.SetOutput(io.Discard)
-		fs.Var(&s, "stored", "")
+		rf := gofastcore.AddRenderFlags(fs)
 		err := fs.Parse(c.args)
+		var ro gofastcore.RenderOptions
+		rf.Apply(&ro)
 		if (err != nil) != c.err {
 			t.Errorf("%v: err %v", c.args, err)
 			continue
 		}
-		if err == nil && (s.all != c.all || !slices.Equal(s.kinds, c.kinds)) {
-			t.Errorf("%v: got %v %v, want %v %v", c.args, s.all, s.kinds, c.all, c.kinds)
+		if err == nil && (ro.Stored != c.all || !slices.Equal(ro.StoredKinds, c.kinds)) {
+			t.Errorf("%v: got %v %v, want %v %v", c.args, ro.Stored, ro.StoredKinds, c.all, c.kinds)
 		}
 	}
 	var out, errOut bytes.Buffer

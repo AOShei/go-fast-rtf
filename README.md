@@ -156,7 +156,7 @@ Besides the shared codes (`limit.exceeded`, `part.no_text`,
 | `input.external_reference` | warning | a linked object, an `INCLUDEPICTURE`, `INCLUDETEXT`, `INCLUDE`, `LINK` or `IMPORT` field, a remote `\*\template`; nothing was fetched |
 | `input.active_content` | warning | a `DDE` or `DDEAUTO` field, an ActiveX control (`\objocx`); nothing was run |
 | `text.tracked_changes` | info | the document has insertions (`\revised`) or deletions (`\deleted`) |
-| `text.unmapped_glyphs` | warning | bytes in a code page that is not decoded, bytes their code page leaves undefined, bytes above 0x7F in a Symbol font (`\fcharset2`) other than 0xB7, unpaired surrogates |
+| `text.unmapped_glyphs` | warning | bytes in a code page that is not decoded, bytes their code page leaves undefined, bytes above 0x7F in a Symbol font (`\fcharset2`) other than 0xB7, unpaired surrogates. One warning for the body: with more than one code page it gives the total, says what happened in each of the first eight (in the order of their numbers) and counts the rest |
 | `image.unsupported_encoding` | warning | with `ImagesData`, a picture in a format whose bytes cannot be given as a file (device-dependent bitmap, OS/2 metafile, no format named) |
 | `input.trailing_data` | info | data follows the document's closing brace; the message gives how many bytes. Its text is in the stored part as `after_end`. On the document when there is no stored part to carry it |
 | `rtf.unread_content` | warning | content this version does not read: equations (`\mmath`) |
@@ -172,15 +172,24 @@ Besides the shared codes (`limit.exceeded`, `part.no_text`,
 | `Extractor.MaxGroupDepth` | 1024 | nesting of groups; deeper groups are not read, with `limit.exceeded` |
 | `Limits.MaxDepth` | 4 (core) | nesting of embedded documents |
 
-Smaller fixed bounds: a field instruction holds 32 KiB, a metadata item
-64 KiB, the generator (`\*\generator`) 4 KiB, a document variable's or
-custom property's value 64 KiB, a tracked deletion 1 MiB; 16,384 document
-variables and as many custom properties are kept; the text after the
-document's end holds 1 MiB; a table has at most 1,048,576 rows, and a row
-definition gives the merges of at most 4,096 cells (`\cellx`). These
-bounds cut what lies past them without a `limit.exceeded` warning.
-Without `ImagesData`, at most 64 KiB of a picture is decoded, to read its
-size.
+Smaller fixed bounds: a field instruction or index entry holds 32 KiB, a
+metadata item 64 KiB, the generator (`\*\generator`) 4 KiB, a document
+variable's or custom property's name 1 KiB and value 64 KiB, a tracked
+deletion 1 MiB, a comment author 1 KiB, a form field's name or choice
+4 KiB, a picture's or shape's description 64 KiB, a bookmark name and a
+list marker 256 bytes, an embedded object's name 1 KiB and class 256
+bytes, a revision author 512 bytes; 16,384 document variables, as many
+custom properties and as many revision authors are kept, and 1,024
+choices of one form field; fields nest at most 256 deep; the text after
+the document's end holds 1 MiB; a table has at most 1,048,576 rows, and a
+row definition gives the merges of at most 4,096 cells (`\cellx`; the
+text of the cells past them is read). A bound that cuts or leaves out
+content gives one `limit.exceeded` warning (severity `error`) for each
+bound, saying how many items it cut or left out and, for text, how many
+bytes: on the body for what goes to the body, on the stored part for
+stored data (on the document when there is no stored part), and on the
+document for metadata and the names of embedded objects. Without
+`ImagesData`, at most 64 KiB of a picture is decoded, to read its size.
 
 ## What is not read
 

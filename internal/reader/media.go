@@ -113,7 +113,11 @@ func (r *reader) openSp(g *group) {
 	g.dest, g.buf = dWords, nil
 	g.onClose = func() {
 		r.sp = sp.prev
-		r.shapeProp(strings.TrimSpace(sp.name.String()), cleanText(sp.value.String()))
+		name := strings.TrimSpace(sp.name.String())
+		if name == "wzDescription" && (r.pict != nil || r.shape != nil) {
+			r.cutBuf(atBody, "picture and shape descriptions (wzDescription) are cut at", sp.value)
+		}
+		r.shapeProp(name, cleanText(sp.value.String()))
 	}
 }
 
@@ -457,6 +461,9 @@ func (r *reader) endObject(o *object) {
 	}
 	if name == "" {
 		name = class
+		r.cutBuf(atDoc, "embedded object classes (\\objclass) are cut at", o.class)
+	} else {
+		r.cutBuf(atDoc, "embedded object names (\\objname) are cut at", o.name)
 	}
 	if o.kind == "objlink" || o.kind == "objautlink" || !o.read || len(o.data) == 0 {
 		r.doc.Children = append(r.doc.Children, r.opts.ExtractChild(r.ctx, name, "", nil, 0))

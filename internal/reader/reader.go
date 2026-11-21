@@ -4,12 +4,14 @@
 package reader
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/AOShei/go-fast-core"
 	"github.com/AOShei/go-fast-rtf/internal/codepage"
@@ -97,21 +99,38 @@ type group struct {
 	kidN    int
 }
 
-// strbuf collects plain text up to a bound.
+// strbuf collects plain text up to a bound. A buffer of limit 0 takes
+// nothing: it is where text that is not kept goes.
 type strbuf struct {
 	b     []byte
 	limit int
-	full  bool
+	full  bool  // text was left out at the bound
+	lost  int64 // the bytes of UTF-8 left out
 }
 
 func newBuf(limit int) *strbuf { return &strbuf{limit: limit} }
 
+// addRune appends r if it fits in the bound. Once a rune does not fit,
+// none after it is taken either: the text is cut there.
 func (s *strbuf) addRune(r rune) {
-	if len(s.b)+4 > s.limit {
+	n := runeBytes(r)
+	if s.full || len(s.b)+n > s.limit {
 		s.full = true
+		s.lost += int64(n)
 		return
 	}
 	s.b = appendRune(s.b, r)
+}
+
+// runeBytes is the number of bytes appendRune writes for c.
+func runeBytes(c rune) int {
+	if l := gofastcore.Ligature(c); l != "" {
+		return len(l)
+	}
+	if n := utf8.RuneLen(c); n > 0 {
+		return n
+	}
+	return utf8.RuneLen(utf8.RuneError) // what an invalid rune is written as
 }
 
 func (s *strbuf) String() string { return string(s.b) }
@@ -159,18 +178,22 @@ type reader struct {
 	ansicpg int
 	deff    int32
 	fonts   map[int32]font
-	curFont int32             // font being defined in the font table
-	styles  map[int32]*style  // paragraph styles (and section and table styles)
-	cstyles map[int32]*style  // character styles
-	lists   map[int32][]int32 // list id -> \levelnfc of each level
-	lsList  map[int32]int32   // \ls -> list id
-	revs    []string
-	lang    int32
+	// fontDropped: the font table entry being read names a font past
+	// maxDefs; it is counted when the entry's group ends.
+	fontDropped bool
+	curFont     int32             // font being defined in the font table
+	styles      map[int32]*style  // paragraph styles (and section and table styles)
+	cstyles     map[int32]*style  // character styles
+	lists       map[int32][]int32 // list id -> \levelnfc of each level
+	lsList      map[int32]int32   // \ls -> list id
+	revs        []string
+	lang        int32
 
 	form        *formField
 	curList     *listDef
 	curOverride *[3]int32 // list id, \ls, list id set
 	props       [][2]*strbuf
+	propDropped bool        // the custom property being read is past maxStoredItems
 	docvars     [][2]string // text, name
 	userprops   [][2]string
 	unsupported int
@@ -182,8 +205,11 @@ type reader struct {
 	dec      codepage.Decoder
 	ucLeft   int32
 	hiSurr   rune
-	unmapped map[int]int
-	removed  int
+	unmapped map[int]int // replacements by code page; see miss
+	// unmappedMore counts the replacements in code pages met once
+	// unmapped held maxCodePages of them.
+	unmappedMore int
+	removed      int
 
 	fields           []*field
 	shape            *shape
@@ -192,8 +218,10 @@ type reader struct {
 	obj              *object
 	date             *dateBuf
 	atnAuthor, atnID string
-	ftnNum, endNum   int
-	ftnFmt, endFmt   string
+	// the buffers atnAuthor and atnID were read from, to report a cut
+	atnAuthorCut, atnIDCut *strbuf
+	ftnNum, endNum         int
+	ftnFmt, endFmt         string
 
 	// counts for warnings
 	deleted, inserted int
@@ -203,6 +231,7 @@ type reader struct {
 	sawImage          bool
 	pictN             int
 	textCut, decCut   bool
+	storeCut          bool // the text limit was reached in the stored data; no more is added
 	// held is the cost of the blocks and table rows read but not yet
 	// added, since the last paragraph of the body ended; stop is set when
 	// it would not fit the text budget, and reading ends there.
@@ -211,6 +240,9 @@ type reader struct {
 	depthCut  bool
 	repaired  string
 	delivered map[string]bool
+	// cuts are the fixed bounds of this library that left content out,
+	// each reported once, on the part that lost it.
+	cuts []capCut
 
 	// metadata being read
 	info      map[string]*strbuf
@@ -368,27 +400,46 @@ func (r *reader) open() {
 		st := &style{outline: -1, basedOn: -1, name: newBuf(512)}
 		g.style, g.buf = st, st.name
 		g.onClose = func() {
+			table := r.styles
 			if st.cs {
-				if len(r.cstyles) < 1<<16 {
-					r.cstyles[st.num] = st
-				}
-			} else if len(r.styles) < 1<<16 {
-				if _, dup := r.styles[st.num]; !dup || !st.char {
-					r.styles[st.num] = st
-				}
+				table = r.cstyles
+			}
+			_, dup := table[st.num]
+			switch {
+			case !dup && len(table) >= maxDefs:
+				r.cutItems(atBody, "styles past %d in the style sheet were not read; text in them takes no heading level or hidden property from them", maxDefs)
+			case st.cs || !dup || !st.char:
+				table[st.num] = st
 			}
 		}
 	case parent.dest == dRevTbl && parent.buf == nil:
 		b := newBuf(512)
 		g.buf = b
 		g.onClose = func() {
-			if len(r.revs) < 1<<14 {
+			if len(r.revs) < maxRevs {
 				r.revs = append(r.revs, strings.TrimSuffix(cleanText(b.String()), ";"))
+				r.cutBuf(atBody, "revision table entries (author names) are cut at", b)
+			} else {
+				r.cutItems(atBody, "revision table entries (author names) past %d were not read", maxRevs)
 			}
 		}
 	}
 	r.stack = append(r.stack, g)
 }
+
+// maxDefs bounds the fonts, the paragraph styles, the character styles,
+// the lists and the list overrides that are kept, each.
+const maxDefs = 1 << 16
+
+// fontsCut is what fonts past maxDefs are reported as.
+const fontsCut = "fonts past %d in the font table were not read; text in them is decoded in the document's code page"
+
+// maxCodePages bounds the code pages text.unmapped_glyphs counts one by
+// one; the rest are counted together.
+const maxCodePages = 64
+
+// maxRevs bounds the entries of the revision table that are kept.
+const maxRevs = 1 << 14
 
 // close ends a group.
 func (r *reader) close() {
@@ -401,6 +452,10 @@ func (r *reader) close() {
 	if f := g.onClose; f != nil {
 		g.onClose = nil
 		f()
+	}
+	if g.dest == dFontTbl && r.fontDropped {
+		r.fontDropped = false
+		r.cutItems(atBody, fontsCut, maxDefs)
 	}
 	r.stack = r.stack[:len(r.stack)-1]
 	if len(r.stack) == 0 {
@@ -446,7 +501,7 @@ func (r *reader) afterEnd(t token.Token) {
 	}
 	emit := func(c rune, ok bool) {
 		if !ok {
-			r.unmapped[r.ansicpg]++
+			r.miss(r.ansicpg)
 		}
 		r.trailing.addRune(c)
 	}
@@ -472,6 +527,13 @@ func (r *reader) codePage() int {
 func (r *reader) text(data []byte) {
 	g := r.top()
 	switch g.dest {
+	case dFontTbl:
+		// A font table entry ends with ";", in a group of its own or not.
+		if r.fontDropped && bytes.IndexByte(data, ';') >= 0 {
+			r.fontDropped = false
+			r.cutItems(atBody, fontsCut, maxDefs)
+		}
+		return
 	case dPict:
 		if r.pict != nil {
 			r.pict.hex(data)
@@ -482,7 +544,7 @@ func (r *reader) text(data []byte) {
 			r.obj.hex(data)
 		}
 		return
-	case dColorTbl, dFontTbl, dListTable, dListOverrideTable, dWords, dRevTbl:
+	case dColorTbl, dListTable, dListOverrideTable, dWords, dRevTbl:
 		if g.dest == dRevTbl && g.buf != nil {
 			break
 		}
@@ -521,7 +583,7 @@ func (r *reader) text(data []byte) {
 func (r *reader) emitDecoded(cp int) func(rune, bool) {
 	return func(c rune, ok bool) {
 		if !ok {
-			r.unmapped[cp]++
+			r.miss(cp)
 		}
 		r.put(c)
 	}
@@ -557,7 +619,7 @@ func (r *reader) flushBytes() {
 		return
 	}
 	r.dec.Flush(func(c rune, ok bool) {
-		r.unmapped[r.codePage()]++
+		r.miss(r.codePage())
 		r.put(c)
 	})
 }
@@ -631,7 +693,7 @@ func (r *reader) unicode(v int32) {
 			return
 		}
 		r.put1(codepage.Unmapped)
-		r.unmapped[-1]++
+		r.miss(-1)
 		return
 	case c > 0x10FFFF:
 		c = codepage.Unmapped
@@ -691,6 +753,9 @@ func (r *reader) finish() {
 	if r.depthCut {
 		part.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("groups nested deeper than %d levels were not read", r.cfg.MaxGroupDepth))
 	}
+	if !r.cfg.DropBody { // else the body's blocks are the HTML's
+		r.cutWarnings(atBody, part.Warn)
+	}
 	if !hasText {
 		switch {
 		case hasImage || r.sawImage:
@@ -731,30 +796,140 @@ func (r *reader) finish() {
 	part.Finish()
 	r.doc.Parts = append(r.doc.Parts, *part)
 	r.storedPart()
+	r.cutWarnings(atDoc, r.doc.Warn)
 }
 
+// maxListed is how many code pages a text.unmapped_glyphs warning names
+// one by one.
+const maxListed = 8
+
+// miss counts a U+FFFD given for text in code page cp: -1 for an unpaired
+// surrogate, codepage.Symbol for a Symbol font. The first maxCodePages
+// code pages met are counted one by one, and the two negative values
+// always; replacements in the code pages met after them are counted
+// together, so that a file switching among many code pages takes no more
+// memory.
+func (r *reader) miss(cp int) {
+	if _, ok := r.unmapped[cp]; ok || cp < 0 || len(r.unmapped) < maxCodePages {
+		r.unmapped[cp]++
+		return
+	}
+	r.unmappedMore++
+}
+
+// unmappedWarnings gives one text.unmapped_glyphs warning for the part,
+// whatever the number of code pages: with one, it says what happened in
+// it; with more, it gives the total and says it for each of the first
+// maxListed, in the order of their numbers, and counts the rest. With
+// more than maxCodePages, the first maxListed are those of the code pages
+// counted one by one (see miss), and the rest are at least so many.
 func (r *reader) unmappedWarnings(part *gofastcore.Part) {
+	if len(r.unmapped) == 0 {
+		return
+	}
 	cps := make([]int, 0, len(r.unmapped))
 	for cp := range r.unmapped {
 		cps = append(cps, cp)
 	}
 	sort.Ints(cps)
-	for _, cp := range cps {
+	if len(cps) == 1 && r.unmappedMore == 0 {
+		part.Warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, unmappedMessage(cps[0], r.unmapped[cps[0]]))
+		return
+	}
+	total, listed := r.unmappedMore, 0
+	msgs := make([]string, 0, maxListed)
+	for i, cp := range cps {
 		n := r.unmapped[cp]
-		var msg string
-		switch {
-		case cp == -1:
-			msg = fmt.Sprintf("%d unpaired surrogate code units in \\u escapes are U+FFFD", n)
-		case cp == codepage.Symbol:
-			msg = fmt.Sprintf("%d characters in Symbol fonts are U+FFFD", n)
-		case codepage.DoubleByte(cp):
-			msg = fmt.Sprintf("%d characters have no mapping in code page %d, or are a lead byte with no trail byte, and are U+FFFD", n, cp)
-		case !codepage.Known(cp):
-			msg = fmt.Sprintf("code page %d was not decoded: %d bytes are U+FFFD", cp, n)
-		default:
-			msg = fmt.Sprintf("%d bytes have no character in code page %d and are U+FFFD", n, cp)
+		total += n
+		if i < maxListed {
+			listed += n
+			msgs = append(msgs, unmappedMessage(cp, n))
 		}
-		part.Warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, msg)
+	}
+	msg := fmt.Sprintf("%d characters or bytes in all are U+FFFD: %s", total, strings.Join(msgs, "; "))
+	switch more := len(cps) - maxListed; {
+	case r.unmappedMore > 0:
+		// The code pages past maxCodePages are not told apart: at least
+		// one of them was met.
+		msg += fmt.Sprintf("; and at least %d more code pages (past the first %d met they are not told apart), with %d more U+FFFD", max(more, 0)+1, maxCodePages, total-listed)
+	case more > 0:
+		msg += fmt.Sprintf("; and %d more code pages, with %d more U+FFFD", more, total-listed)
+	}
+	part.Warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, msg)
+}
+
+func unmappedMessage(cp, n int) string {
+	switch {
+	case cp == -1:
+		return fmt.Sprintf("%d unpaired surrogate code units in \\u escapes are U+FFFD", n)
+	case cp == codepage.Symbol:
+		return fmt.Sprintf("%d characters in Symbol fonts are U+FFFD", n)
+	case codepage.DoubleByte(cp):
+		return fmt.Sprintf("%d characters have no mapping in code page %d, or are a lead byte with no trail byte, and are U+FFFD", n, cp)
+	case !codepage.Known(cp):
+		return fmt.Sprintf("code page %d was not decoded: %d bytes are U+FFFD", cp, n)
+	}
+	return fmt.Sprintf("%d bytes have no character in code page %d and are U+FFFD", n, cp)
+}
+
+// Where a fixed bound of this library left content out.
+const (
+	atDoc   uint8 = iota // the document: metadata, embedded objects' names
+	atBody               // the body part
+	atStore              // the stored part, or the document without one
+)
+
+// capCut counts what one fixed bound left out.
+type capCut struct {
+	at    uint8
+	what  string // with limit, says what the bound is; see cutWarnings
+	limit int
+	n     int64
+	bytes int64 // the bytes of text left out; -1 when n counts items
+}
+
+// cut records that the bound limit cut n strings, leaving out that many
+// bytes of text, or, with bytes negative, that it left out n items.
+func (r *reader) cut(at uint8, what string, limit int, n, bytes int64) {
+	for i := range r.cuts {
+		if c := &r.cuts[i]; c.at == at && c.what == what && c.limit == limit {
+			c.n += n
+			if bytes >= 0 {
+				c.bytes += bytes
+			}
+			return
+		}
+	}
+	r.cuts = append(r.cuts, capCut{at: at, what: what, limit: limit, n: n, bytes: bytes})
+}
+
+// cutItems records that the bound limit left out an item. what holds a %d
+// for the bound: "table rows past %d in one table were not read".
+func (r *reader) cutItems(at uint8, what string, limit int) { r.cut(at, what, limit, 1, -1) }
+
+// cutBuf records that b was cut at its bound, if it was. what says what
+// the buffer holds and is followed by the bound: "field instructions are
+// cut at".
+func (r *reader) cutBuf(at uint8, what string, b *strbuf) {
+	if b != nil && b.full && b.limit > 0 {
+		r.cut(at, what, b.limit, 1, b.lost)
+	}
+}
+
+// cutWarnings gives one limit.exceeded warning for each bound that left
+// out content reported at at.
+func (r *reader) cutWarnings(at uint8, warn func(gofastcore.Severity, string, string)) {
+	for _, c := range r.cuts {
+		if c.at != at {
+			continue
+		}
+		var msg string
+		if c.bytes >= 0 {
+			msg = fmt.Sprintf("%s %d bytes: %d cut, %d bytes left out", c.what, c.limit, c.n, c.bytes)
+		} else {
+			msg = fmt.Sprintf(c.what, c.limit) + fmt.Sprintf(" (%d)", c.n)
+		}
+		warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, msg)
 	}
 }
 
@@ -807,7 +982,7 @@ func (r *reader) add(b gofastcore.Block) {
 // display reason: it is where it came from, and the file says no more.
 func (r *reader) addStored(text, kind, name string) {
 	text = cleanText(text)
-	if text == "" || r.textCut {
+	if text == "" || r.textCut || r.storeCut {
 		return
 	}
 	attrs := map[string]string{gofastcore.AttrStored: kind}
@@ -816,8 +991,8 @@ func (r *reader) addStored(text, kind, name string) {
 	}
 	b := gofastcore.Block{Kind: gofastcore.KindParagraph, Text: text, Attrs: attrs}
 	if !r.cfg.Text.Take(gofastcore.BlockCost + len(text) + len(name)) {
-		r.textCut = true
-		r.store.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, "the text limit was reached; the stored data is cut off there")
+		// The body is complete: this stops only the stored data.
+		r.storeCut = true
 		return
 	}
 	r.store.Blocks = append(r.store.Blocks, b)
@@ -826,6 +1001,7 @@ func (r *reader) addStored(text, kind, name string) {
 func (r *reader) storedPart() {
 	if r.trailing != nil && r.trailingData {
 		r.addStored(r.trailing.String(), gofastcore.StoredAfterEnd, "")
+		r.cutBuf(atStore, "the text after the end of the document is cut at", r.trailing)
 	}
 	// Data after the closing brace is stated in a warning on the stored
 	// part, or on the document when there is no stored part to carry it.
@@ -838,10 +1014,15 @@ func (r *reader) storedPart() {
 		}
 		trailing = fmt.Sprintf("%d %s the end of the document", n, noun)
 	}
+	const storeCut = "the text limit was reached; the stored data is cut off there"
 	warnDoc := func() {
+		if r.storeCut {
+			r.doc.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, storeCut)
+		}
 		if trailing != "" {
 			r.doc.Warn(gofastcore.SeverityInfo, gofastcore.WarnInputTrailingData, trailing)
 		}
+		r.cutWarnings(atStore, r.doc.Warn)
 	}
 	if len(r.store.Blocks) == 0 || !r.opts.Parts.Contains(2) || r.opts.Parts != (gofastcore.PartRange{}) {
 		warnDoc()
@@ -852,9 +1033,13 @@ func (r *reader) storedPart() {
 		warnDoc()
 		return
 	}
+	if r.storeCut {
+		r.store.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, storeCut)
+	}
 	if trailing != "" {
 		r.store.Warn(gofastcore.SeverityInfo, gofastcore.WarnInputTrailingData, trailing)
 	}
+	r.cutWarnings(atStore, r.store.Warn)
 	r.store.Finish()
 	r.doc.Parts = append(r.doc.Parts, *r.store)
 }

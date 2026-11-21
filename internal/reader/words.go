@@ -158,14 +158,26 @@ func (r *reader) word(t token.Token) {
 	case "userprops":
 		r.userProps(g)
 	case "propname":
-		if g.dest == dUserProps && len(r.props)+len(r.userprops) < maxStoredItems {
-			r.props = append(r.props, [2]*strbuf{newBuf(1024), newBuf(1 << 16)})
-			g.buf = r.props[len(r.props)-1][0]
+		if g.dest != dUserProps {
+			break
 		}
+		r.propDropped = len(r.props)+len(r.userprops) >= maxStoredItems
+		if r.propDropped {
+			// Its text, with no buffer, goes nowhere.
+			r.cutItems(atStore, "custom properties past %d were not read", maxStoredItems)
+			g.buf = nil
+			break
+		}
+		r.props = append(r.props, [2]*strbuf{newBuf(maxPropName), newBuf(maxPropValue)})
+		g.buf = r.props[len(r.props)-1][0]
 	case "staticval":
 		if g.dest == dUserProps {
+			if r.propDropped {
+				g.buf = nil // the value of a property not kept goes nowhere
+				break
+			}
 			if len(r.props) == 0 {
-				r.props = append(r.props, [2]*strbuf{newBuf(1024), newBuf(1 << 16)})
+				r.props = append(r.props, [2]*strbuf{newBuf(maxPropName), newBuf(maxPropValue)})
 			}
 			g.buf = r.props[len(r.props)-1][1]
 		}
@@ -315,8 +327,10 @@ func (r *reader) word(t token.Token) {
 		g.onClose = func() {
 			if name == "atnid" {
 				r.atnID = cleanText(b.String())
+				r.atnIDCut = b
 			} else {
 				r.atnAuthor = cleanText(b.String())
+				r.atnAuthorCut = b
 			}
 		}
 	case "atndate":
@@ -343,6 +357,7 @@ func (r *reader) word(t token.Token) {
 		g.onClose = func() {
 			if f != nil && len(f.text) == 0 && f.anchor == "" {
 				f.anchor = cleanText(b.String())
+				r.cutBuf(atBody, "bookmark names are cut at", b)
 			}
 		}
 
@@ -426,10 +441,18 @@ func (r *reader) word(t token.Token) {
 			g.buf, g.dest = b, dBody
 			g.onClose = func() {
 				s := cleanText(b.String())
-				if name == "ffname" {
+				switch {
+				case name == "ffname":
 					ff.name = s
-				} else if s != "" && len(ff.choices) < 1024 {
-					ff.choices = append(ff.choices, s)
+					r.cutBuf(atBody, "form field names are cut at", b)
+				case len(ff.choices) < maxChoices:
+					r.cutBuf(atBody, "form field choices are cut at", b)
+					if s != "" {
+						ff.choices = append(ff.choices, s)
+					}
+				case s == "":
+				default:
+					r.cutItems(atBody, "form field choices past %d in one field were not read", maxChoices)
 				}
 			}
 		} else {
@@ -437,6 +460,9 @@ func (r *reader) word(t token.Token) {
 		}
 	}
 }
+
+// maxChoices bounds the choices of one drop-down form field.
+const maxChoices = 1024
 
 // formField is the settings of a form field being read.
 type formField struct {
@@ -492,8 +518,12 @@ func (r *reader) fontWord(name string, v int32) {
 	switch name {
 	case "f":
 		r.curFont = v
-		if _, ok := r.fonts[v]; !ok && len(r.fonts) < 1<<16 {
-			r.fonts[v] = font{}
+		if _, ok := r.fonts[v]; !ok {
+			if len(r.fonts) < maxDefs {
+				r.fonts[v] = font{}
+			} else {
+				r.fontDropped = true // counted where its entry ends: ";" (text) or close
+			}
 		}
 	case "fcharset":
 		f, ok := r.fonts[r.curFont]
@@ -574,8 +604,10 @@ func (r *reader) listWord(g *group, name string, v int32) {
 		l := &listDef{}
 		r.curList = l
 		g.onClose = func() {
-			if l.hasID && len(r.lists) < 1<<16 {
+			if _, ok := r.lists[l.id]; l.hasID && (ok || len(r.lists) < maxDefs) {
 				r.lists[l.id] = l.levels
+			} else if l.hasID {
+				r.cutItems(atBody, "lists past %d in the list table were not read; whether their items are numbered is taken from their markers", maxDefs)
 			}
 			r.curList = nil
 		}
@@ -600,8 +632,10 @@ func (r *reader) listWord(g *group, name string, v int32) {
 		o := &[3]int32{}
 		r.curOverride = o
 		g.onClose = func() {
-			if o[2] == 1 && o[1] > 0 && len(r.lsList) < 1<<16 {
+			if _, ok := r.lsList[o[1]]; o[2] == 1 && o[1] > 0 && (ok || len(r.lsList) < maxDefs) {
 				r.lsList[o[1]] = o[0]
+			} else if o[2] == 1 && o[1] > 0 {
+				r.cutItems(atBody, "list overrides (\\ls) past %d were not read; whether their items are numbered is taken from their markers", maxDefs)
 			}
 			r.curOverride = nil
 		}
@@ -611,6 +645,10 @@ func (r *reader) listWord(g *group, name string, v int32) {
 		}
 	}
 }
+
+// maxCellDefs bounds the cell definitions of one row. The cells past them
+// are read; only their merges are not known.
+const maxCellDefs = 4096
 
 // rowWord reads the control words that define a table row.
 func (r *reader) rowWord(g *group, name string) {
@@ -627,8 +665,10 @@ func (r *reader) rowWord(g *group, name string) {
 	case "trowd":
 		*d = rowDef{cells: d.cells[:0]}
 	case "cellx":
-		if len(d.cells) < 4096 {
+		if len(d.cells) < maxCellDefs {
 			d.cells = append(d.cells, d.next)
+		} else {
+			r.cutItems(atBody, "cell definitions (\\cellx) past %d in one row were not read; the cells past them are given without merges", maxCellDefs)
 		}
 		d.next = cellDef{}
 	case "clmgf":
@@ -650,10 +690,17 @@ func (r *reader) noteFlow(g *group, kind flowKind) {
 	f := &flow{r: r, kind: kind, parent: parent}
 	if kind == flowNote {
 		f.author = r.atnAuthor
+		// The cut of the author is reported, also when only white space
+		// was kept and the ID is used instead.
+		cut := r.atnAuthorCut
+		if f.author == "" && (cut == nil || !cut.full) {
+			cut = r.atnIDCut
+		}
 		if f.author == "" {
 			f.author = r.atnID
 		}
-		r.atnAuthor, r.atnID = "", ""
+		r.cutBuf(atBody, "comment authors are cut at", cut)
+		r.atnAuthor, r.atnID, r.atnAuthorCut, r.atnIDCut = "", "", nil, nil
 	}
 	g.flow, g.buf, g.dest, g.p = f, nil, dBody, defaultPara()
 	g.onClose = func() { r.endNote(f, parent) }
@@ -703,11 +750,16 @@ func (r *reader) endNote(f *flow, parent *flow) {
 }
 
 func (r *reader) docVar(g *group) {
-	name, value := newBuf(1024), newBuf(1<<16)
+	name, value := newBuf(maxPropName), newBuf(maxPropValue)
 	g.dest, g.buf = dDocVar, nil
 	g.kids = []*strbuf{name, value}
 	g.onClose = func() {
 		n, v := cleanText(name.String()), cleanText(value.String())
+		kept := len(r.docvars) < maxStoredItems
+		if kept {
+			r.cutBuf(atStore, "document variable names are cut at", name)
+			r.cutBuf(atStore, "document variable values are cut at", value)
+		}
 		text := n + ": " + v
 		switch {
 		case n == "" && v == "":
@@ -717,8 +769,10 @@ func (r *reader) docVar(g *group) {
 		case n == "":
 			text = v
 		}
-		if len(r.docvars) < maxStoredItems {
+		if kept {
 			r.docvars = append(r.docvars, [2]string{text, n})
+		} else {
+			r.cutItems(atStore, "document variables past %d were not read", maxStoredItems)
 		}
 	}
 }
@@ -727,12 +781,24 @@ func (r *reader) docVar(g *group) {
 // properties, that are kept.
 const maxStoredItems = 1 << 14
 
+// The bounds of the name and the value of a document variable or a
+// custom property.
+const (
+	maxPropName  = 1 << 10
+	maxPropValue = 1 << 16
+)
+
 func (r *reader) userProps(g *group) {
 	g.dest, g.buf = dUserProps, nil
-	r.props = r.props[:0]
+	r.props, r.propDropped = r.props[:0], false
 	g.onClose = func() {
 		for _, p := range r.props {
 			n, v := cleanText(p[0].String()), cleanText(p[1].String())
+			kept := len(r.userprops) < maxStoredItems
+			if kept {
+				r.cutBuf(atStore, "custom property names are cut at", p[0])
+				r.cutBuf(atStore, "custom property values are cut at", p[1])
+			}
 			if n == "" && v == "" {
 				continue
 			}
@@ -740,8 +806,10 @@ func (r *reader) userProps(g *group) {
 			if v == "" {
 				text = n
 			}
-			if len(r.userprops) < maxStoredItems {
+			if kept {
 				r.userprops = append(r.userprops, [2]string{text, n})
+			} else {
+				r.cutItems(atStore, "custom properties past %d were not read", maxStoredItems)
 			}
 		}
 		r.props = r.props[:0]

@@ -390,8 +390,9 @@ func TestBinData(t *testing.T) {
 	}
 }
 
-func TestObjects(t *testing.T) {
-	// An OLE 1.0 stream of class Package holding "hello".
+// packageHex is the hexadecimal of an OLE 1.0 stream of class Package
+// holding "hello" in a file labelled note.txt.
+func packageHex() string {
 	var b []byte
 	le32 := func(v uint32) { b = append(b, byte(v), byte(v>>8), byte(v>>16), byte(v>>24)) }
 	lp := func(s string) { le32(uint32(len(s) + 1)); b = append(b, s...); b = append(b, 0) }
@@ -415,7 +416,12 @@ func TestObjects(t *testing.T) {
 		hex.WriteString("0123456789abcdef"[c>>4 : c>>4+1])
 		hex.WriteString("0123456789abcdef"[c&15 : c&15+1])
 	}
-	src := wrap(`\pard Obj {\object\objemb{\*\objclass Package}{\*\objdata ` + hex.String() + `}{\result shown}}\par` +
+	return hex.String()
+}
+
+func TestObjects(t *testing.T) {
+	hex := packageHex()
+	src := wrap(`\pard Obj {\object\objemb{\*\objclass Package}{\*\objdata ` + hex + `}{\result shown}}\par` +
 		`\pard {\object\objlink{\*\objclass Excel.Sheet.8}{\result linked}}\par`)
 	var got string
 	doc := extract(t, src, &gofastcore.Options{Child: func(ctx context.Context, name, mime string, r io.ReaderAt, size int64, o *gofastcore.Options) (*gofastcore.Document, error) {

@@ -145,6 +145,7 @@ func (r *reader) metadata() {
 	m := &r.doc.Metadata
 	get := func(name string) string {
 		if b, ok := r.info[name]; ok {
+			r.cutBuf(atDoc, "metadata items (\\info) are cut at", b)
 			return cleanText(strings.ReplaceAll(b.String(), "\n", " "))
 		}
 		return ""
@@ -180,6 +181,7 @@ func (r *reader) metadata() {
 		gen := strings.TrimSpace(strings.TrimSuffix(cleanText(r.generator.String()), ";"))
 		m.Application = gen
 		r.addStored(gen, "generator", "")
+		r.cutBuf(atStore, "the generator (\\*\\generator) is cut at", r.generator)
 	}
 	for _, dv := range r.docvars {
 		r.addStored(dv[0], gofastcore.StoredDocumentVariable, dv[1])
@@ -204,6 +206,9 @@ type field struct {
 // maxFieldCode bounds the instruction of one field.
 const maxFieldCode = 32 << 10
 
+// maxFieldDepth bounds how deeply fields may nest.
+const maxFieldDepth = 256
+
 func (r *reader) openField(g *group) {
 	f := &field{instr: newBuf(maxFieldCode)}
 	for i := len(r.fields) - 1; i >= 0; i-- {
@@ -212,14 +217,16 @@ func (r *reader) openField(g *group) {
 			break
 		}
 	}
-	if len(r.fields) >= 256 {
+	if len(r.fields) >= maxFieldDepth {
 		r.skipGroup()
+		r.cutItems(atBody, "fields nested deeper than %d were not read", maxFieldDepth)
 		return
 	}
 	r.fields = append(r.fields, f)
 	g.onClose = func() {
 		r.fields = r.fields[:len(r.fields)-1]
 		code := cleanText(strings.ReplaceAll(f.instr.String(), "\n", " "))
+		r.cutBuf(atBody, "field instructions are cut at", f.instr)
 		if code == "" {
 			return
 		}
@@ -266,8 +273,12 @@ func (r *reader) openEntry(g *group, name string) {
 	f := g.flow
 	g.buf = b
 	g.onClose = func() {
+		if f == nil {
+			return
+		}
+		r.cutBuf(atBody, "index and table-of-contents entries are cut at", b)
 		text := cleanText(strings.ReplaceAll(b.String(), "\n", " "))
-		if text == "" || f == nil {
+		if text == "" {
 			return
 		}
 		f.after = append(f.after, r.fieldNote(entryWords[name]+" "+text))

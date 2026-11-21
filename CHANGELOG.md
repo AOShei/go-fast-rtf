@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.1.1 (2026-11-22)
+
+- Built on go-fast-core v0.1.1: a part or document keeps at most 1,000
+  warnings, and the rest are counted in one `warnings.omitted` warning.
+- The fixed bounds of this library that cut or leave out content now say
+  so, with one `limit.exceeded` warning (severity `error`) for each bound
+  on the part that lost the content, giving how many items were cut or
+  left out and, for text, how many bytes. In v0.1.0 they cut silently. On
+  the body: field instructions and index entries (32 KiB), tracked
+  deletions (1 MiB), comment authors (1 KiB), form field names and
+  choices (4 KiB) and choices past 1,024 in one field, picture and shape
+  descriptions (64 KiB), bookmark names and list markers (256 bytes),
+  revision authors (512 bytes) and past 16,384 of them, fonts, styles,
+  lists and list overrides past 65,536 each, fields nested deeper than
+  256, table rows past 1,048,576 in one table, and cell definitions
+  (`\cellx`) past 4,096 in one row (the cells' text was and is read;
+  their merges are not). On the stored part, or on the document
+  when there is no stored part: the generator (4 KiB), document variable
+  and custom property names (1 KiB) and values (64 KiB), document
+  variables and custom properties past 16,384, and the text after the
+  document's end (1 MiB). On the document: metadata items (64 KiB) and
+  embedded object names (1 KiB) and classes (256 bytes).
+- `text.unmapped_glyphs` is one warning for the body, however many code
+  pages it concerns: with more than one, the message gives the total,
+  what happened in each of the first eight code pages and the number of
+  the rest. In v0.1.0 there was one warning per code page, without bound.
+  With one code page the message is unchanged. The first 64 code pages
+  met are counted one by one and the rest together, so the count takes
+  bounded memory.
+- The text limit reached in the stored data (`limit.exceeded`, "the
+  stored data is cut off there") is on the document when the stored part
+  is not given; in v0.1.0 it was lost with the part. The body no longer
+  says it is cut off when only the stored data reached the limit.
+- Text buffers hold exactly their bound: in v0.1.0 they stopped up to 3
+  bytes short of it.
+- The value of a custom property past the 16,384th is no longer added to
+  the value of the last one kept.
+
 ## v0.1.0 (2026-11-21)
 
 The first release. Built on go-fast-core v0.1.0, schema 0.2.

@@ -48,6 +48,8 @@ type flow struct {
 	lastP     para
 
 	del       []byte
+	delFull   bool  // the deletion reached maxDeletion; nothing more is kept
+	delLost   int64 // bytes of deleted text past maxDeletion
 	delAuthor string
 	delDate   string
 
@@ -77,7 +79,12 @@ func (f *flow) add(c rune, g *group) {
 		if len(f.del) == 0 {
 			f.delAuthor, f.delDate = r.revAuthor(g.c.revDel), dttm(g.c.dttmDel)
 		}
-		if len(f.del) < 1<<20 {
+		// As strbuf.addRune: the text is cut at the first rune that does
+		// not fit.
+		if n := runeBytes(c); f.delFull || len(f.del)+n > maxDeletion {
+			f.delFull = true
+			f.delLost += int64(n)
+		} else {
 			f.del = appendRune(f.del, c)
 		}
 		return
@@ -138,7 +145,11 @@ func (f *flow) flushDel() {
 		return
 	}
 	text := cleanText(string(f.del))
-	f.del = f.del[:0]
+	lost := f.delLost
+	f.del, f.delLost, f.delFull = f.del[:0], 0, false
+	if lost > 0 { // even when what was kept is only white space
+		f.r.cut(atBody, "tracked deletions are cut at", maxDeletion, 1, lost)
+	}
 	if text == "" {
 		return
 	}
@@ -154,6 +165,9 @@ func (f *flow) flushDel() {
 	f.r.holdBlock(&b)
 	f.after = append(f.after, b)
 }
+
+// maxDeletion bounds the text of one tracked deletion.
+const maxDeletion = 1 << 20
 
 // tableLevel is the nesting depth of tables a paragraph is in; 0 for none.
 func tableLevel(p para) int {
@@ -176,6 +190,7 @@ func (f *flow) endParaAt(p para, level int) {
 	hasMarker := f.marker != nil
 	if hasMarker {
 		marker = cleanMarker(f.marker.String())
+		f.r.cutBuf(atBody, "list markers (\\listtext, \\pntext) are cut at", f.marker)
 	}
 	if level > 0 {
 		f.ensureTables(level)
@@ -559,6 +574,7 @@ func (f *flow) endRow(level int) {
 	}
 	if len(t.rows) >= maxRows {
 		t.cur = t.cur[:0]
+		f.r.cutItems(atBody, "table rows past %d in one table were not read", maxRows)
 		return
 	}
 	cost := 0

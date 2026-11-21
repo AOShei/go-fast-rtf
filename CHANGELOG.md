@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.1.0 (not yet tagged)
+## v0.1.0 (2026-11-21)
 
 The first release. Built on go-fast-core v0.1.0, schema 0.2.
 

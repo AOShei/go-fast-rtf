@@ -1,11 +1,45 @@
 # Changelog
 
-## Unreleased: core d4cd8e2
+## v0.1.0 (not yet tagged)
+
+The first release. Built on go-fast-core schema 0.2 (core `d4cd8e2`).
+
+- Reads RTF (specification 1.9.1) into one `body` part, and a `stored`
+  part for data the file keeps but never shows.
+- Decodes `\uN`, and `\'hh` and 8-bit text through code pages 874, 1250 to
+  1258, Mac Roman (10000), UTF-8 (65001) and the double-byte 932, 936, 949
+  and 950, with the user-defined areas of 932 and 936 as Windows maps
+  them.
+- Gives headings, lists, tables with merges and header rows, footnotes,
+  comments, tracked deletions, field instructions as stored `field_code`
+  notes, hyperlinks, pictures, text boxes, headers and footers, form-field
+  choices, metadata, and Word's horizontal line as a native
+  `thematic_break`.
+- Reports only the display the file declares: `hidden` for `\v` (direct
+  or through a style) and for a shape's `fHidden`.
+- Hands embedded objects (`\objdata`, unpacked from a `Package`) to
+  `Options.Child`, and the HTML of a `\fromhtml1` document as `body.html`.
+- Stored data: core's kinds `field_code`, `document_variable` and
+  `after_end`, and this library's own `generator` and `custom_property`
+  (`StoredGenerator`, `StoredCustomProperty`, listed in
+  `StoredKindNames`).
+- The command `gofastrtf` prints JSON, Markdown or text (`-format`), with
+  `-images`, `-spans`, `-max-group-depth`, `-max-decoded-bytes`,
+  `-max-text-bytes`, `-quiet`, `-o`, `-version` and the series' render
+  flags `-furniture`, `-stored[=kinds]`, `-part-markers`, `-children` and
+  `-exclude-display[=reasons]`.
+
+## Before v0.1.0
+
+Development history, newest first. The core pins named are those of the
+time.
+
+### Core d4cd8e2
 
 - go-fast-core pinned at `d4cd8e2`: `Validate` now rejects an inferred
   `thematic_break`; this library emits only declared ones and passes.
 
-## Unreleased: no inferred thematic breaks
+### No inferred thematic breaks
 
 - **Removed:** the `thematic_break` (`Origin` `inferred`) given for an
   empty paragraph whose only border is a styled bottom border. A border is
@@ -16,7 +50,7 @@
   with `Origin` `native` in place of the line's picture, as go-fast-ooxml
   reads Word's `o:hr`.
 
-## Unreleased: exported stored kinds
+### Exported stored kinds
 
 - **Added:** `StoredGenerator`, `StoredCustomProperty` and `StoredKindNames`,
   the `Attrs["stored"]` values this library writes beyond core's, for
@@ -24,7 +58,7 @@
   children). `TestStoredKindNamesComplete` checks the list against what
   the library writes.
 
-## Unreleased: field codes as stored data
+### Field codes as stored data
 
 Built on go-fast-core `ebecf3c`.
 
@@ -38,7 +72,7 @@ Built on go-fast-core `ebecf3c`.
   `StoredKindNames` plus `generator` and `custom_property`); anything else
   is an error listing the kinds, exit status 2.
 
-## Unreleased: encapsulated HTML
+### Encapsulated HTML
 
 - **Added:** a document that declares `\fromhtml1` (HTML mail as Outlook
   stores it, [MS-OXRTFEX]) has its HTML de-encapsulated and handed to
@@ -52,7 +86,7 @@ Built on go-fast-core `ebecf3c`.
   body is the RTF reading as before, and `body.html` is listed as a child
   that was not read.
 
-## Unreleased: user-defined areas of code pages 932 and 936
+### User-defined areas of code pages 932 and 936
 
 - **Fixed:** code page 932 decodes byte 0x80 as U+0080 and its
   user-defined area (lead bytes 0xF0 to 0xF9) as U+E000 to U+E757; code
@@ -60,7 +94,7 @@ Built on go-fast-core `ebecf3c`.
   to 0xFEFE, 0xA140 to 0xA7A0) as U+E000 to U+E765, as Windows does. These
   were U+FFFD with `text.unmapped_glyphs` before. 949 and 950 unchanged.
 
-## Unreleased: declared, not judged (breaking)
+### Declared, not judged
 
 Built on go-fast-core `787b056`, schema `0.2`.
 

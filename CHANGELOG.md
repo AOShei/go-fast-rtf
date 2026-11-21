@@ -2,7 +2,7 @@
 
 ## v0.1.0 (not yet tagged)
 
-The first release. Built on go-fast-core schema 0.2 (core `4499357`).
+The first release. Built on go-fast-core v0.1.0, schema 0.2.
 
 - Reads RTF (specification 1.9.1) into one `body` part, and a `stored`
   part for data the file keeps but never shows.
@@ -29,6 +29,12 @@ The first release. Built on go-fast-core schema 0.2 (core `4499357`).
   `-exclude-display[=reasons]`.
 
 ## Before v0.1.0
+
+### Core v0.1.0
+
+- go-fast-core pinned at its v0.1.0 tag. Nothing changes here: since
+  `4499357` core changed documentation, and `TextBudget.Take` now takes a
+  negative amount as 0, which this library never passes.
 
 ### Core 4499357: closed value sets, shared render flags
 

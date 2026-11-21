@@ -5,8 +5,8 @@ into the shared go-fast document model,
 [`gofastcore.Document`](https://github.com/AOShei/go-fast-core). Standard
 library and go-fast modules only.
 
-**Status: v0.1.0 (not yet tagged).** Built on go-fast-core schema 0.2
-(core `d4cd8e2`).
+**Status: v0.1.0 (not yet tagged).** Built on go-fast-core v0.1.0
+(schema 0.2).
 
 ## Using it
 

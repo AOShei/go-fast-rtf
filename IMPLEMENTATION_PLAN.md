@@ -7,8 +7,7 @@ How the library was built, in order. What it does now is in
 Module `github.com/AOShei/go-fast-rtf`, package `gofastrtf`. Extracts RTF
 (Microsoft RTF 1.9.1) into the go-fast-core model: one `body` part, and a
 `stored` part when the file holds data it never shows. Built on
-go-fast-core schema 0.2 (core `d4cd8e2`,
-v0.0.0-20261120143830-d4cd8e285190).
+go-fast-core v0.1.0 (schema 0.2).
 
 ## Layout
 

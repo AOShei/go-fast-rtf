@@ -14,8 +14,9 @@ import (
 type shape struct {
 	prev   *shape
 	alt    string
-	hidden bool // fHidden: the shape declares itself hidden
-	hrule  bool // fHorizRule: the shape is Word's horizontal line
+	altBuf *strbuf // where alt was read, to report a cut
+	hidden bool    // fHidden: the shape declares itself hidden
+	hrule  bool    // fHorizRule: the shape is Word's horizontal line
 	images []gofastcore.Block
 	boxed  []boxed // the blocks of its text box (\shptxt), and of shapes in it
 }
@@ -55,17 +56,25 @@ func (r *reader) openShape(g *group) {
 			s.images = []gofastcore.Block{{Kind: gofastcore.KindThematicBreak}}
 		}
 		top := r.top()
+		altUsed := false
 		for _, b := range s.images {
 			if b.Kind == gofastcore.KindImage && b.Text == "" && s.alt != "" {
 				b.Text = s.alt
+				altUsed = true
 			}
 			if s.hidden {
 				displayWhole(&b, gofastcore.DisplayHidden)
 			}
 			r.deliver(top.flow, b)
 		}
+		if altUsed {
+			r.cutBuf(atBody, altCut, s.altBuf)
+		}
 	}
 }
+
+// altCut is what a cut wzDescription is reported as.
+const altCut = "picture and shape descriptions (wzDescription) are cut at"
 
 // displayWhole gives the whole of block b the reason d, taking it off the
 // spans and table regions that had it for part of the block.
@@ -113,22 +122,19 @@ func (r *reader) openSp(g *group) {
 	g.dest, g.buf = dWords, nil
 	g.onClose = func() {
 		r.sp = sp.prev
-		name := strings.TrimSpace(sp.name.String())
-		if name == "wzDescription" && (r.pict != nil || r.shape != nil) {
-			r.cutBuf(atBody, "picture and shape descriptions (wzDescription) are cut at", sp.value)
-		}
-		r.shapeProp(name, cleanText(sp.value.String()))
+		r.shapeProp(strings.TrimSpace(sp.name.String()), cleanText(sp.value.String()), sp.value)
 	}
 }
 
-// shapeProp reads one property of a shape or picture.
-func (r *reader) shapeProp(name, value string) {
+// shapeProp reads one property of a shape or picture; buf is where its
+// value was read.
+func (r *reader) shapeProp(name, value string, buf *strbuf) {
 	switch {
 	case name == "wzDescription" && value != "":
 		if r.pict != nil {
-			r.pict.alt = value
+			r.pict.alt, r.pict.altBuf = value, buf
 		} else if r.shape != nil {
-			r.shape.alt = value
+			r.shape.alt, r.shape.altBuf = value, buf
 		}
 	case name == "fHidden" && r.pict == nil && r.shape != nil:
 		// A boolean: 0 is false, anything else true; the last one counts.
@@ -161,8 +167,9 @@ type pict struct {
 	half   byte
 	odd    bool
 	alt    string
-	cut    bool // the data was more than could be kept
-	hrule  bool // fHorizRule in its \picprop: Word's horizontal line
+	altBuf *strbuf // where alt was read, to report a cut
+	cut    bool    // the data was more than could be kept
+	hrule  bool    // fHorizRule in its \picprop: Word's horizontal line
 }
 
 // sniffBytes is how much of a picture is kept, when its data is not
@@ -315,6 +322,9 @@ func (r *reader) endPict(p *pict) {
 		}
 	}
 	b := gofastcore.Block{Kind: gofastcore.KindImage, Text: cleanText(p.alt), Image: img}
+	if b.Text != "" {
+		r.cutBuf(atBody, altCut, p.altBuf)
+	}
 	if r.shape != nil {
 		r.holdBlock(&b)
 		r.shape.images = append(r.shape.images, b)
@@ -459,17 +469,26 @@ func (r *reader) endObject(o *object) {
 	case "objocx":
 		r.active++
 	}
+	// The cut of a name is reported only where that name is the
+	// child's: a Package's label replaces both.
+	fromName := name != ""
+	nameCut := func() {
+		if fromName {
+			r.cutBuf(atDoc, "embedded object names (\\objname) are cut at", o.name)
+		} else {
+			r.cutBuf(atDoc, "embedded object classes (\\objclass) are cut at", o.class)
+		}
+	}
 	if name == "" {
 		name = class
-		r.cutBuf(atDoc, "embedded object classes (\\objclass) are cut at", o.class)
-	} else {
-		r.cutBuf(atDoc, "embedded object names (\\objname) are cut at", o.name)
 	}
 	if o.kind == "objlink" || o.kind == "objautlink" || !o.read || len(o.data) == 0 {
+		nameCut()
 		r.doc.Children = append(r.doc.Children, r.opts.ExtractChild(r.ctx, name, "", nil, 0))
 		return
 	}
 	if o.cut || !r.cfg.Decode.Take(int64(len(o.data))) {
+		nameCut()
 		r.decCut = true
 		r.doc.Children = append(r.doc.Children, r.opts.ExtractChild(r.ctx, name, "", nil, o.n))
 		return
@@ -477,6 +496,8 @@ func (r *reader) endObject(o *object) {
 	payload, label := ole1Native(o.data)
 	if label != "" {
 		name = label
+	} else {
+		nameCut()
 	}
 	if payload == nil {
 		payload = o.data

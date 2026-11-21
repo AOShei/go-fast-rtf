@@ -156,7 +156,7 @@ Besides the shared codes (`limit.exceeded`, `part.no_text`,
 | `input.external_reference` | warning | a linked object, an `INCLUDEPICTURE`, `INCLUDETEXT`, `INCLUDE`, `LINK` or `IMPORT` field, a remote `\*\template`; nothing was fetched |
 | `input.active_content` | warning | a `DDE` or `DDEAUTO` field, an ActiveX control (`\objocx`); nothing was run |
 | `text.tracked_changes` | info | the document has insertions (`\revised`) or deletions (`\deleted`) |
-| `text.unmapped_glyphs` | warning | bytes in a code page that is not decoded, bytes their code page leaves undefined, bytes above 0x7F in a Symbol font (`\fcharset2`) other than 0xB7, unpaired surrogates. One warning for the body: with more than one code page it gives the total, says what happened in each of the first eight (in the order of their numbers) and counts the rest |
+| `text.unmapped_glyphs` | warning | bytes in a code page that is not decoded, bytes their code page leaves undefined, bytes above 0x7F in a Symbol font (`\fcharset2`) other than 0xB7, unpaired surrogates. One warning for the body: with more than one code page it gives the total, says what happened in each of the first eight (in the order of their numbers) and counts the rest. The first 64 code pages met are counted one by one; past them the rest are counted together, and the message says "at least" so many more |
 | `image.unsupported_encoding` | warning | with `ImagesData`, a picture in a format whose bytes cannot be given as a file (device-dependent bitmap, OS/2 metafile, no format named) |
 | `input.trailing_data` | info | data follows the document's closing brace; the message gives how many bytes. Its text is in the stored part as `after_end`. On the document when there is no stored part to carry it |
 | `rtf.unread_content` | warning | content this version does not read: equations (`\mmath`) |
@@ -179,8 +179,9 @@ deletion 1 MiB, a comment author 1 KiB, a form field's name or choice
 4 KiB, a picture's or shape's description 64 KiB, a bookmark name and a
 list marker 256 bytes, an embedded object's name 1 KiB and class 256
 bytes, a revision author 512 bytes; 16,384 document variables, as many
-custom properties and as many revision authors are kept, and 1,024
-choices of one form field; fields nest at most 256 deep; the text after
+custom properties and as many revision authors are kept, 65,536 fonts,
+paragraph styles, character styles, lists and list overrides each, and
+1,024 choices of one form field; fields nest at most 256 deep; the text after
 the document's end holds 1 MiB; a table has at most 1,048,576 rows, and a
 row definition gives the merges of at most 4,096 cells (`\cellx`; the
 text of the cells past them is read). A bound that cuts or leaves out

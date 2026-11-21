@@ -518,8 +518,12 @@ func (r *reader) fontWord(name string, v int32) {
 	switch name {
 	case "f":
 		r.curFont = v
-		if _, ok := r.fonts[v]; !ok && len(r.fonts) < 1<<16 {
-			r.fonts[v] = font{}
+		if _, ok := r.fonts[v]; !ok {
+			if len(r.fonts) < maxDefs {
+				r.fonts[v] = font{}
+			} else {
+				r.cutItems(atBody, "fonts past %d in the font table were not read; text in them is decoded in the document's code page", maxDefs)
+			}
 		}
 	case "fcharset":
 		f, ok := r.fonts[r.curFont]
@@ -600,8 +604,10 @@ func (r *reader) listWord(g *group, name string, v int32) {
 		l := &listDef{}
 		r.curList = l
 		g.onClose = func() {
-			if l.hasID && len(r.lists) < 1<<16 {
+			if _, ok := r.lists[l.id]; l.hasID && (ok || len(r.lists) < maxDefs) {
 				r.lists[l.id] = l.levels
+			} else if l.hasID {
+				r.cutItems(atBody, "lists past %d in the list table were not read; whether their items are numbered is taken from their markers", maxDefs)
 			}
 			r.curList = nil
 		}
@@ -626,8 +632,10 @@ func (r *reader) listWord(g *group, name string, v int32) {
 		o := &[3]int32{}
 		r.curOverride = o
 		g.onClose = func() {
-			if o[2] == 1 && o[1] > 0 && len(r.lsList) < 1<<16 {
+			if _, ok := r.lsList[o[1]]; o[2] == 1 && o[1] > 0 && (ok || len(r.lsList) < maxDefs) {
 				r.lsList[o[1]] = o[0]
+			} else if o[2] == 1 && o[1] > 0 {
+				r.cutItems(atBody, "list overrides (\\ls) past %d were not read; whether their items are numbered is taken from their markers", maxDefs)
 			}
 			r.curOverride = nil
 		}

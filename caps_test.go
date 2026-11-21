@@ -75,7 +75,7 @@ func TestFieldInstructionCut(t *testing.T) {
 		` {\xe ` + strings.Repeat("z", 40_000) + `}\par`)
 	doc := extract(t, src, nil)
 	body := doc.Parts[0]
-	wantCut(t, "body", body.Warnings, "field instructions are cut at 32768 bytes", "2 cut", "74470 bytes left out")
+	wantCut(t, "body", body.Warnings, "field instructions are cut at 32768 bytes", "2 cut", "74464 bytes left out")
 	wantCut(t, "body", body.Warnings, "index and table-of-contents entries are cut at 32768 bytes", "1 cut")
 }
 
@@ -219,7 +219,7 @@ func TestUnmappedAggregated(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("got %d text.unmapped_glyphs warnings", len(msgs))
 	}
-	for _, want := range []string{"5000 characters or bytes in all are U+FFFD: ", "code page 20000 was not decoded: 1 bytes are U+FFFD; ", "code page 20007 was not decoded", "; and 4992 more code pages, with 4992 more"} {
+	for _, want := range []string{"5000 characters or bytes in all are U+FFFD: ", "code page 20000 was not decoded: 1 bytes are U+FFFD; ", "code page 20007 was not decoded", "; and at least 57 more code pages, with 4992 more"} {
 		if !strings.Contains(msgs[0], want) {
 			t.Errorf("message %q lacks %q", msgs[0], want)
 		}
@@ -231,5 +231,116 @@ func TestUnmappedAggregated(t *testing.T) {
 	doc = extract(t, plain(`\pard {\ansicpg20000 \'e9\'e9}\par`), nil)
 	if ws := doc.Parts[0].Warnings; len(ws) == 0 || ws[0].Code != gofastcore.WarnTextUnmappedGlyphs || ws[0].Message != "code page 20000 was not decoded: 2 bytes are U+FFFD" {
 		t.Errorf("one code page: %+v", ws)
+	}
+}
+
+// TestCutAtTheBound checks that a buffer holds exactly its bound: text
+// that fills it is not cut, and one byte more is.
+func TestCutAtTheBound(t *testing.T) {
+	for _, n := range []int{32766, 32768} {
+		doc := extract(t, wrap(`\pard A {\field{\*\fldinst `+strings.Repeat("x", n)+`}{\fldrslt r}}\par`), nil)
+		if got := limitWarnings(doc.Parts[0].Warnings); got != nil {
+			t.Errorf("%d bytes: %q", n, got)
+		}
+		found := false
+		for _, b := range doc.Parts[0].Blocks {
+			found = found || b.Kind == gofastcore.KindNote && len(b.Text) == n
+		}
+		if !found {
+			t.Errorf("%d bytes: no field note of that length", n)
+		}
+	}
+	doc := extract(t, wrap(`\pard A {\field{\*\fldinst `+strings.Repeat("x", 32769)+`}{\fldrslt r}}\par`), nil)
+	wantCut(t, "body", doc.Parts[0].Warnings, "field instructions are cut at 32768 bytes: 1 cut, 1 bytes left out")
+	// A rune that does not fit ends the text, though a shorter one would.
+	doc = extract(t, wrap(`\pard A {\field{\*\fldinst `+strings.Repeat("x", 32766)+`\u8364?y}{\fldrslt r}}\par`), nil)
+	wantCut(t, "body", doc.Parts[0].Warnings, "field instructions are cut at 32768 bytes: 1 cut, 4 bytes left out")
+}
+
+// TestObjectNameCut checks that a cut \objname is reported only when it is
+// the child's name, not when a Package's label replaces it.
+func TestObjectNameCut(t *testing.T) {
+	long := strings.Repeat("o", 2000)
+	doc := extract(t, wrap(`\pard {\object\objemb{\*\objname `+long+`}{\*\objclass Package}{\*\objdata `+packageHex()+`}{\result r}}\par`), nil)
+	if got := limitWarnings(doc.Warnings); got != nil {
+		t.Errorf("name replaced by the label: %q", got)
+	}
+	doc = extract(t, wrap(`\pard {\object\objemb{\*\objname `+long+`}{\*\objclass Package}{\result r}}\par`), nil)
+	wantCut(t, "document", doc.Warnings, `embedded object names (\objname) are cut at 1024 bytes`)
+}
+
+// TestDescriptionCutOnce checks that of several wzDescription values on
+// one picture only the one kept is reported.
+func TestDescriptionCutOnce(t *testing.T) {
+	png := "89504e470d0a1a0a0000000d49484452000000100000000808060000001f15c489"
+	sp := `{\sp{\sn wzDescription}{\sv ` + strings.Repeat("d", 70_000) + `}}`
+	doc := extract(t, wrap(`\pard {\pict{\*\picprop`+sp+sp+sp+`}\pngblip `+png+`}\par`), nil)
+	wantCut(t, "body", doc.Parts[0].Warnings, "picture and shape descriptions (wzDescription) are cut at 65536 bytes: 1 cut")
+}
+
+// TestDefinitionsCut checks the bounds of the font table, the style
+// sheet, the list table and the list override table.
+func TestDefinitionsCut(t *testing.T) {
+	if testing.Short() {
+		t.Skip("reads tables of 65,536 entries")
+	}
+	var fonts, styles, lists, overrides strings.Builder
+	for i := range 1<<16 + 2 {
+		fmt.Fprintf(&fonts, `{\f%d F;}`, i+10)
+		fmt.Fprintf(&styles, `{\s%d S;}`, i+10)
+		fmt.Fprintf(&lists, `{\list\listid%d}`, i+1)
+		fmt.Fprintf(&overrides, `{\listoverride\listid1\ls%d}`, i+1)
+	}
+	src := `{\rtf1\ansi\deff0{\fonttbl{\f0 Times;}` + fonts.String() + `}{\stylesheet{\s0 Normal;}` + styles.String() + `}` +
+		`{\*\listtable` + lists.String() + `}{\*\listoverridetable` + overrides.String() + `}\pard Body\par}`
+	doc := extract(t, src, nil)
+	ws := doc.Parts[0].Warnings
+	wantCut(t, "body", ws, "fonts past 65536 in the font table were not read", "(3)")
+	wantCut(t, "body", ws, "styles past 65536 in the style sheet were not read", "(3)")
+	wantCut(t, "body", ws, "lists past 65536 in the list table were not read", "(2)")
+	wantCut(t, "body", ws, `list overrides (\ls) past 65536 were not read`, "(2)")
+}
+
+// TestStoredTextCutWithoutStoredPart checks that the text limit reached in
+// the stored data is reported on the document when the stored part is
+// not given.
+func TestStoredTextCutWithoutStoredPart(t *testing.T) {
+	src := wrap(`{\*\generator ` + strings.Repeat("g", 3000) + `;}\pard Body\par`)
+	lim := gofastcore.Limits{MaxTextBytes: 2000}
+	const msg = "the text limit was reached; the stored data is cut off there"
+	doc := extract(t, src, &gofastcore.Options{Limits: lim})
+	if part(doc, gofastcore.PartStored) != nil {
+		t.Fatalf("stored part given: %s", dump(doc))
+	}
+	wantCut(t, "document", doc.Warnings, msg)
+	for _, o := range []*gofastcore.Options{
+		{Limits: lim, Parts: gofastcore.PartRange{First: 1, Last: 1}},
+		{Limits: gofastcore.Limits{MaxTextBytes: 2000, MaxParts: 1}},
+	} {
+		doc = extract(t, src, o)
+		wantCut(t, "document", doc.Warnings, msg)
+	}
+}
+
+// TestUnmappedFewCodePages checks the message for a few code pages, all
+// counted one by one.
+func TestUnmappedFewCodePages(t *testing.T) {
+	var b strings.Builder
+	for cp := range 20 {
+		fmt.Fprintf(&b, `{\ansicpg%d \'e9}`, 20000+cp)
+	}
+	doc := extract(t, `{\rtf1\ansi\deff0{\fonttbl{\f0 Times;}}\pard `+b.String()+`\par}`, nil)
+	n := 0
+	for _, w := range doc.Parts[0].Warnings {
+		if w.Code == gofastcore.WarnTextUnmappedGlyphs {
+			n++
+			if !strings.HasPrefix(w.Message, "20 characters or bytes in all are U+FFFD: code page 20000 was not decoded: 1 bytes are U+FFFD; ") ||
+				!strings.HasSuffix(w.Message, "; and 12 more code pages, with 12 more") {
+				t.Errorf("message %q", w.Message)
+			}
+		}
+	}
+	if n != 1 {
+		t.Errorf("%d warnings", n)
 	}
 }

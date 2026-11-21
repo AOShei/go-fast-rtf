@@ -109,13 +109,27 @@ type strbuf struct {
 
 func newBuf(limit int) *strbuf { return &strbuf{limit: limit} }
 
+// addRune appends r if it fits in the bound. Once a rune does not fit,
+// none after it is taken either: the text is cut there.
 func (s *strbuf) addRune(r rune) {
-	if len(s.b)+4 > s.limit {
+	n := runeBytes(r)
+	if s.full || len(s.b)+n > s.limit {
 		s.full = true
-		s.lost += int64(max(utf8.RuneLen(r), 1))
+		s.lost += int64(n)
 		return
 	}
 	s.b = appendRune(s.b, r)
+}
+
+// runeBytes is the number of bytes appendRune writes for c.
+func runeBytes(c rune) int {
+	if l := gofastcore.Ligature(c); l != "" {
+		return len(l)
+	}
+	if n := utf8.RuneLen(c); n > 0 {
+		return n
+	}
+	return utf8.RuneLen(utf8.RuneError) // what an invalid rune is written as
 }
 
 func (s *strbuf) String() string { return string(s.b) }
@@ -187,8 +201,11 @@ type reader struct {
 	dec      codepage.Decoder
 	ucLeft   int32
 	hiSurr   rune
-	unmapped map[int]int
-	removed  int
+	unmapped map[int]int // replacements by code page; see miss
+	// unmappedMore counts the replacements in code pages met once
+	// unmapped held maxCodePages of them.
+	unmappedMore int
+	removed      int
 
 	fields           []*field
 	shape            *shape
@@ -210,6 +227,7 @@ type reader struct {
 	sawImage          bool
 	pictN             int
 	textCut, decCut   bool
+	storeCut          bool // the text limit was reached in the stored data
 	// held is the cost of the blocks and table rows read but not yet
 	// added, since the last paragraph of the body ended; stop is set when
 	// it would not fit the text budget, and reading ends there.
@@ -378,14 +396,16 @@ func (r *reader) open() {
 		st := &style{outline: -1, basedOn: -1, name: newBuf(512)}
 		g.style, g.buf = st, st.name
 		g.onClose = func() {
+			table := r.styles
 			if st.cs {
-				if len(r.cstyles) < 1<<16 {
-					r.cstyles[st.num] = st
-				}
-			} else if len(r.styles) < 1<<16 {
-				if _, dup := r.styles[st.num]; !dup || !st.char {
-					r.styles[st.num] = st
-				}
+				table = r.cstyles
+			}
+			_, dup := table[st.num]
+			switch {
+			case !dup && len(table) >= maxDefs:
+				r.cutItems(atBody, "styles past %d in the style sheet were not read; text in them takes no heading level or hidden property from them", maxDefs)
+			case st.cs || !dup || !st.char:
+				table[st.num] = st
 			}
 		}
 	case parent.dest == dRevTbl && parent.buf == nil:
@@ -402,6 +422,14 @@ func (r *reader) open() {
 	}
 	r.stack = append(r.stack, g)
 }
+
+// maxDefs bounds the fonts, the paragraph styles, the character styles,
+// the lists and the list overrides that are kept, each.
+const maxDefs = 1 << 16
+
+// maxCodePages bounds the code pages text.unmapped_glyphs counts one by
+// one; the rest are counted together.
+const maxCodePages = 64
 
 // maxRevs bounds the entries of the revision table that are kept.
 const maxRevs = 1 << 14
@@ -462,7 +490,7 @@ func (r *reader) afterEnd(t token.Token) {
 	}
 	emit := func(c rune, ok bool) {
 		if !ok {
-			r.unmapped[r.ansicpg]++
+			r.miss(r.ansicpg)
 		}
 		r.trailing.addRune(c)
 	}
@@ -537,7 +565,7 @@ func (r *reader) text(data []byte) {
 func (r *reader) emitDecoded(cp int) func(rune, bool) {
 	return func(c rune, ok bool) {
 		if !ok {
-			r.unmapped[cp]++
+			r.miss(cp)
 		}
 		r.put(c)
 	}
@@ -573,7 +601,7 @@ func (r *reader) flushBytes() {
 		return
 	}
 	r.dec.Flush(func(c rune, ok bool) {
-		r.unmapped[r.codePage()]++
+		r.miss(r.codePage())
 		r.put(c)
 	})
 }
@@ -647,7 +675,7 @@ func (r *reader) unicode(v int32) {
 			return
 		}
 		r.put1(codepage.Unmapped)
-		r.unmapped[-1]++
+		r.miss(-1)
 		return
 	case c > 0x10FFFF:
 		c = codepage.Unmapped
@@ -757,10 +785,26 @@ func (r *reader) finish() {
 // one by one.
 const maxListed = 8
 
+// miss counts a U+FFFD given for text in code page cp: -1 for an unpaired
+// surrogate, codepage.Symbol for a Symbol font. The first maxCodePages
+// code pages met are counted one by one, and the two negative values
+// always; replacements in the code pages met after them are counted
+// together, so that a file switching among many code pages takes no more
+// memory.
+func (r *reader) miss(cp int) {
+	if _, ok := r.unmapped[cp]; ok || cp < 0 || len(r.unmapped) < maxCodePages {
+		r.unmapped[cp]++
+		return
+	}
+	r.unmappedMore++
+}
+
 // unmappedWarnings gives one text.unmapped_glyphs warning for the part,
 // whatever the number of code pages: with one, it says what happened in
 // it; with more, it gives the total and says it for each of the first
-// maxListed, in the order of their numbers, and counts the rest.
+// maxListed, in the order of their numbers, and counts the rest. With
+// more than maxCodePages, the first maxListed are those of the code pages
+// counted one by one (see miss), and the rest are at least so many.
 func (r *reader) unmappedWarnings(part *gofastcore.Part) {
 	if len(r.unmapped) == 0 {
 		return
@@ -770,11 +814,11 @@ func (r *reader) unmappedWarnings(part *gofastcore.Part) {
 		cps = append(cps, cp)
 	}
 	sort.Ints(cps)
-	if len(cps) == 1 {
+	if len(cps) == 1 && r.unmappedMore == 0 {
 		part.Warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, unmappedMessage(cps[0], r.unmapped[cps[0]]))
 		return
 	}
-	total, listed := 0, 0
+	total, listed := r.unmappedMore, 0
 	msgs := make([]string, 0, maxListed)
 	for i, cp := range cps {
 		n := r.unmapped[cp]
@@ -785,7 +829,12 @@ func (r *reader) unmappedWarnings(part *gofastcore.Part) {
 		}
 	}
 	msg := fmt.Sprintf("%d characters or bytes in all are U+FFFD: %s", total, strings.Join(msgs, "; "))
-	if more := len(cps) - maxListed; more > 0 {
+	switch more := len(cps) - maxListed; {
+	case r.unmappedMore > 0:
+		// The code pages past maxCodePages are not told apart: at least
+		// one of them was met.
+		msg += fmt.Sprintf("; and at least %d more code pages, with %d more", max(more, 0)+1, total-listed)
+	case more > 0:
 		msg += fmt.Sprintf("; and %d more code pages, with %d more", more, total-listed)
 	}
 	part.Warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, msg)
@@ -924,8 +973,7 @@ func (r *reader) addStored(text, kind, name string) {
 	}
 	b := gofastcore.Block{Kind: gofastcore.KindParagraph, Text: text, Attrs: attrs}
 	if !r.cfg.Text.Take(gofastcore.BlockCost + len(text) + len(name)) {
-		r.textCut = true
-		r.store.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, "the text limit was reached; the stored data is cut off there")
+		r.textCut, r.storeCut = true, true
 		return
 	}
 	r.store.Blocks = append(r.store.Blocks, b)
@@ -947,7 +995,11 @@ func (r *reader) storedPart() {
 		}
 		trailing = fmt.Sprintf("%d %s the end of the document", n, noun)
 	}
+	const storeCut = "the text limit was reached; the stored data is cut off there"
 	warnDoc := func() {
+		if r.storeCut {
+			r.doc.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, storeCut)
+		}
 		if trailing != "" {
 			r.doc.Warn(gofastcore.SeverityInfo, gofastcore.WarnInputTrailingData, trailing)
 		}
@@ -961,6 +1013,9 @@ func (r *reader) storedPart() {
 		r.doc.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, "the part limit was reached; the stored part is left out")
 		warnDoc()
 		return
+	}
+	if r.storeCut {
+		r.store.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, storeCut)
 	}
 	if trailing != "" {
 		r.store.Warn(gofastcore.SeverityInfo, gofastcore.WarnInputTrailingData, trailing)

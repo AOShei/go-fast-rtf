@@ -10,7 +10,7 @@ import (
 	gofastrtf "github.com/AOShei/go-fast-rtf"
 )
 
-// Every Attrs["stored"] value the library writes is core's or listed in
+// Every Attrs["stored"] value the library writes is in core's
 // StoredKindNames, so a command can accept it in -stored=kinds.
 func TestStoredKindNamesComplete(t *testing.T) {
 	src := []byte(`{\rtf1{\*\generator Test Writer 1.0;}{\*\docvar {Var}{value}}` +
@@ -24,12 +24,12 @@ func TestStoredKindNamesComplete(t *testing.T) {
 	for _, b := range doc.AllBlocks() {
 		if k := b.Attrs[gofastcore.AttrStored]; k != "" {
 			seen[k] = true
-			if !slices.Contains(gofastcore.StoredKindNames, k) && !slices.Contains(gofastrtf.StoredKindNames, k) {
+			if !slices.Contains(gofastcore.StoredKindNames(), k) {
 				t.Errorf("stored kind %q is not listed", k)
 			}
 		}
 	}
-	for _, k := range gofastrtf.StoredKindNames {
+	for _, k := range []string{gofastrtf.StoredGenerator, gofastrtf.StoredCustomProperty} {
 		if !seen[k] {
 			t.Errorf("listed kind %q not produced by the fixture", k)
 		}

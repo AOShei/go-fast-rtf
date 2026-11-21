@@ -214,7 +214,7 @@ only; JSON always has everything:
 | Flag | Effect |
 |---|---|
 | `-furniture` | in Markdown and text, include running headers and footers |
-| `-stored[=kinds]` | in Markdown and text, include stored data (data the file keeps but shows nowhere): all of it (`-stored`, `=true`, `=all`), or with =kinds only those kinds, comma- or `+`-separated (core's: `field_code`, `document_variable`, `after_end`, ...; this library's own: `generator`, `custom_property`). `=false` or `=` turn it off; an unknown kind is an error listing the kinds, exit status 2 |
+| `-stored[=kinds]` | in Markdown and text, include stored data (data the file keeps but shows nowhere): all of it (`-stored`, `=true`, `=all`), or with =kinds only those kinds, comma- or `+`-separated (core's `StoredKindNames()`; those RTF writes are `field_code`, `document_variable`, `after_end`, `generator` and `custom_property`). `=false` or `=` turn it off; an unknown kind is an error listing the kinds, exit status 2 |
 | `-part-markers` | in Markdown and text, put a line before each part saying which part it is |
 | `-children` (default true) | in Markdown and text, include embedded documents (here, objects the command reads: embedded RTF files), each after a line naming it (`[child 1: name]` in text, `<!-- child 1: name -->` in Markdown); a child that was not read gives only that line; `-children=false` leaves them out |
 | `-exclude-display[=reasons]` | in Markdown and text, leave out what the file declares not displayed: all of it (alone, `=true` or `=all`), or with `=reasons` only those reasons (`hidden`, `no_ink`, joined by `,` or `+`); `=false` or `=` turns it off, and any other value, `unknown` included, is an error |

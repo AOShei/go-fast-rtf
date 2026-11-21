@@ -5,7 +5,7 @@ into the shared go-fast document model,
 [`gofastcore.Document`](https://github.com/AOShei/go-fast-core). Standard
 library and go-fast modules only.
 
-**Status: v0.1.0 (2026-11-21).** Built on go-fast-core v0.1.0
+**Status: v0.1.1 (2026-11-22).** Built on go-fast-core v0.1.1
 (schema 0.2).
 
 ## Using it

@@ -1,7 +1,9 @@
 # Changelog
 
-## v0.1.1 (not yet tagged)
+## v0.1.1 (2026-11-22)
 
+- Built on go-fast-core v0.1.1: a part or document keeps at most 1,000
+  warnings, and the rest are counted in one `warnings.omitted` warning.
 - The fixed bounds of this library that cut or leave out content now say
   so, with one `limit.exceeded` warning (severity `error`) for each bound
   on the part that lost the content, giving how many items were cut or

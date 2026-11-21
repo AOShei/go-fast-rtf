@@ -177,13 +177,16 @@ type reader struct {
 	ansicpg int
 	deff    int32
 	fonts   map[int32]font
-	curFont int32             // font being defined in the font table
-	styles  map[int32]*style  // paragraph styles (and section and table styles)
-	cstyles map[int32]*style  // character styles
-	lists   map[int32][]int32 // list id -> \levelnfc of each level
-	lsList  map[int32]int32   // \ls -> list id
-	revs    []string
-	lang    int32
+	// fontDropped: the font table entry being read names a font past
+	// maxDefs; it is counted when the entry's group ends.
+	fontDropped bool
+	curFont     int32             // font being defined in the font table
+	styles      map[int32]*style  // paragraph styles (and section and table styles)
+	cstyles     map[int32]*style  // character styles
+	lists       map[int32][]int32 // list id -> \levelnfc of each level
+	lsList      map[int32]int32   // \ls -> list id
+	revs        []string
+	lang        int32
 
 	form        *formField
 	curList     *listDef
@@ -227,7 +230,7 @@ type reader struct {
 	sawImage          bool
 	pictN             int
 	textCut, decCut   bool
-	storeCut          bool // the text limit was reached in the stored data
+	storeCut          bool // the text limit was reached in the stored data; no more is added
 	// held is the cost of the blocks and table rows read but not yet
 	// added, since the last paragraph of the body ended; stop is set when
 	// it would not fit the text budget, and reading ends there.
@@ -445,6 +448,10 @@ func (r *reader) close() {
 	if f := g.onClose; f != nil {
 		g.onClose = nil
 		f()
+	}
+	if g.dest == dFontTbl && r.fontDropped {
+		r.fontDropped = false
+		r.cutItems(atBody, "fonts past %d in the font table were not read; text in them is decoded in the document's code page", maxDefs)
 	}
 	r.stack = r.stack[:len(r.stack)-1]
 	if len(r.stack) == 0 {
@@ -833,9 +840,9 @@ func (r *reader) unmappedWarnings(part *gofastcore.Part) {
 	case r.unmappedMore > 0:
 		// The code pages past maxCodePages are not told apart: at least
 		// one of them was met.
-		msg += fmt.Sprintf("; and at least %d more code pages, with %d more", max(more, 0)+1, total-listed)
+		msg += fmt.Sprintf("; and at least %d more code pages (past the first %d met they are not told apart), with %d more U+FFFD", max(more, 0)+1, maxCodePages, total-listed)
 	case more > 0:
-		msg += fmt.Sprintf("; and %d more code pages, with %d more", more, total-listed)
+		msg += fmt.Sprintf("; and %d more code pages, with %d more U+FFFD", more, total-listed)
 	}
 	part.Warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, msg)
 }
@@ -964,7 +971,7 @@ func (r *reader) add(b gofastcore.Block) {
 // display reason: it is where it came from, and the file says no more.
 func (r *reader) addStored(text, kind, name string) {
 	text = cleanText(text)
-	if text == "" || r.textCut {
+	if text == "" || r.textCut || r.storeCut {
 		return
 	}
 	attrs := map[string]string{gofastcore.AttrStored: kind}
@@ -973,7 +980,8 @@ func (r *reader) addStored(text, kind, name string) {
 	}
 	b := gofastcore.Block{Kind: gofastcore.KindParagraph, Text: text, Attrs: attrs}
 	if !r.cfg.Text.Take(gofastcore.BlockCost + len(text) + len(name)) {
-		r.textCut, r.storeCut = true, true
+		// The body is complete: this stops only the stored data.
+		r.storeCut = true
 		return
 	}
 	r.store.Blocks = append(r.store.Blocks, b)

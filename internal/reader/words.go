@@ -522,7 +522,7 @@ func (r *reader) fontWord(name string, v int32) {
 			if len(r.fonts) < maxDefs {
 				r.fonts[v] = font{}
 			} else {
-				r.cutItems(atBody, "fonts past %d in the font table were not read; text in them is decoded in the document's code page", maxDefs)
+				r.fontDropped = true // counted when its entry ends (close)
 			}
 		}
 	case "fcharset":

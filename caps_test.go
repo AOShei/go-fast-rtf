@@ -191,7 +191,7 @@ func TestBodyBuffersCut(t *testing.T) {
 		`\pard ` + nested + `\par`)
 	doc := extract(t, src, nil)
 	ws := doc.Parts[0].Warnings
-	wantCut(t, "body", ws, "tracked deletions are cut at 1048576 bytes", "1 cut")
+	wantCut(t, "body", ws, "tracked deletions are cut at 1048576 bytes", "1 cut", "10 bytes left out")
 	wantCut(t, "body", ws, "comment authors are cut at 1024 bytes")
 	wantCut(t, "body", ws, "form field names are cut at 4096 bytes")
 	wantCut(t, "body", ws, "form field choices past 1024 in one field were not read (7)")
@@ -219,7 +219,7 @@ func TestUnmappedAggregated(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("got %d text.unmapped_glyphs warnings", len(msgs))
 	}
-	for _, want := range []string{"5000 characters or bytes in all are U+FFFD: ", "code page 20000 was not decoded: 1 bytes are U+FFFD; ", "code page 20007 was not decoded", "; and at least 57 more code pages, with 4992 more"} {
+	for _, want := range []string{"5000 characters or bytes in all are U+FFFD: ", "code page 20000 was not decoded: 1 bytes are U+FFFD; ", "code page 20007 was not decoded", "; and at least 57 more code pages (past the first 64 met they are not told apart), with 4992 more U+FFFD"} {
 		if !strings.Contains(msgs[0], want) {
 			t.Errorf("message %q lacks %q", msgs[0], want)
 		}
@@ -286,7 +286,12 @@ func TestDefinitionsCut(t *testing.T) {
 	}
 	var fonts, styles, lists, overrides strings.Builder
 	for i := range 1<<16 + 2 {
-		fmt.Fprintf(&fonts, `{\f%d F;}`, i+10)
+		if i < 1<<16-1 {
+			fmt.Fprintf(&fonts, `{\f%d F;}`, i+10)
+		} else {
+			// Past the bound, an entry with two \f is counted once.
+			fmt.Fprintf(&fonts, `{\f%d\f%d F;}`, i+10, i+10+(1<<20))
+		}
 		fmt.Fprintf(&styles, `{\s%d S;}`, i+10)
 		fmt.Fprintf(&lists, `{\list\listid%d}`, i+1)
 		fmt.Fprintf(&overrides, `{\listoverride\listid1\ls%d}`, i+1)
@@ -313,12 +318,27 @@ func TestStoredTextCutWithoutStoredPart(t *testing.T) {
 		t.Fatalf("stored part given: %s", dump(doc))
 	}
 	wantCut(t, "document", doc.Warnings, msg)
+	// The body is complete: it carries no limit.exceeded.
+	if got := limitWarnings(doc.Parts[0].Warnings); got != nil {
+		t.Errorf("body: %q", got)
+	}
+	if bs := blocks(doc); len(bs) != 1 || bs[0].Text != "Body" {
+		t.Errorf("body blocks: %s", dump(doc))
+	}
+	// The repro of the review, without wrap's tables.
+	doc = extract(t, `{\rtf1\ansi{\fonttbl{\f0 Times;}}{\*\generator `+strings.Repeat("g", 3000)+`;}\pard Body\par}`, &gofastcore.Options{Limits: lim})
+	if got := limitWarnings(doc.Parts[0].Warnings); got != nil {
+		t.Errorf("body: %q", got)
+	}
 	for _, o := range []*gofastcore.Options{
 		{Limits: lim, Parts: gofastcore.PartRange{First: 1, Last: 1}},
 		{Limits: gofastcore.Limits{MaxTextBytes: 2000, MaxParts: 1}},
 	} {
 		doc = extract(t, src, o)
 		wantCut(t, "document", doc.Warnings, msg)
+		if got := limitWarnings(doc.Parts[0].Warnings); got != nil {
+			t.Errorf("body: %q", got)
+		}
 	}
 }
 
@@ -335,7 +355,7 @@ func TestUnmappedFewCodePages(t *testing.T) {
 		if w.Code == gofastcore.WarnTextUnmappedGlyphs {
 			n++
 			if !strings.HasPrefix(w.Message, "20 characters or bytes in all are U+FFFD: code page 20000 was not decoded: 1 bytes are U+FFFD; ") ||
-				!strings.HasSuffix(w.Message, "; and 12 more code pages, with 12 more") {
+				!strings.HasSuffix(w.Message, "; and 12 more code pages, with 12 more U+FFFD") {
 				t.Errorf("message %q", w.Message)
 			}
 		}
@@ -343,4 +363,15 @@ func TestUnmappedFewCodePages(t *testing.T) {
 	if n != 1 {
 		t.Errorf("%d warnings", n)
 	}
+}
+
+// TestDeletionCutAtTheBound checks that a tracked deletion holds exactly
+// its bound, and that the text is cut at the first rune that does not fit.
+func TestDeletionCutAtTheBound(t *testing.T) {
+	doc := extract(t, wrap(`\pard A{\deleted `+strings.Repeat("d", 1<<20)+`} B\par`), nil)
+	if got := limitWarnings(doc.Parts[0].Warnings); got != nil {
+		t.Errorf("deletion of exactly the bound: %q", got)
+	}
+	doc = extract(t, wrap(`\pard A{\deleted `+strings.Repeat("d", 1<<20-1)+`\u8364?e} B\par`), nil)
+	wantCut(t, "body", doc.Parts[0].Warnings, "tracked deletions are cut at 1048576 bytes: 1 cut, 4 bytes left out")
 }

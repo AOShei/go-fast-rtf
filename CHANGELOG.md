@@ -29,7 +29,8 @@
   bounded memory.
 - The text limit reached in the stored data (`limit.exceeded`, "the
   stored data is cut off there") is on the document when the stored part
-  is not given; in v0.1.0 it was lost with the part.
+  is not given; in v0.1.0 it was lost with the part. The body no longer
+  says it is cut off when only the stored data reached the limit.
 - Text buffers hold exactly their bound: in v0.1.0 they stopped up to 3
   bytes short of it.
 - The value of a custom property past the 16,384th is no longer added to

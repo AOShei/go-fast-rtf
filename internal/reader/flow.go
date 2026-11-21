@@ -48,6 +48,7 @@ type flow struct {
 	lastP     para
 
 	del       []byte
+	delFull   bool  // the deletion reached maxDeletion; nothing more is kept
 	delLost   int64 // bytes of deleted text past maxDeletion
 	delAuthor string
 	delDate   string
@@ -78,10 +79,13 @@ func (f *flow) add(c rune, g *group) {
 		if len(f.del) == 0 {
 			f.delAuthor, f.delDate = r.revAuthor(g.c.revDel), dttm(g.c.dttmDel)
 		}
-		if len(f.del) < maxDeletion {
-			f.del = appendRune(f.del, c)
+		// As strbuf.addRune: the text is cut at the first rune that does
+		// not fit.
+		if n := runeBytes(c); f.delFull || len(f.del)+n > maxDeletion {
+			f.delFull = true
+			f.delLost += int64(n)
 		} else {
-			f.delLost += int64(max(utf8.RuneLen(c), 1))
+			f.del = appendRune(f.del, c)
 		}
 		return
 	}
@@ -142,7 +146,7 @@ func (f *flow) flushDel() {
 	}
 	text := cleanText(string(f.del))
 	lost := f.delLost
-	f.del, f.delLost = f.del[:0], 0
+	f.del, f.delLost, f.delFull = f.del[:0], 0, false
 	if text == "" {
 		return
 	}

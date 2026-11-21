@@ -17,6 +17,10 @@ jobs:
         go: ['1.25', 'stable']
     runs-on: ${{ matrix.os }}
     steps:
+      # Check files out as committed, with LF line ends, on Windows too:
+      # the source-hygiene tests and the fixtures depend on exact bytes.
+      - name: Keep line ends as committed
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:

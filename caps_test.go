@@ -468,3 +468,13 @@ func TestLargePNGSize(t *testing.T) {
 		t.Errorf("image %+v", img)
 	}
 }
+
+// TestLargeUnicodeSkip checks that \ucN above 16 skips N fallback bytes
+// after each \uN, so that none of them is given as text.
+func TestLargeUnicodeSkip(t *testing.T) {
+	fallback := strings.Repeat("?", 20)
+	doc := extract(t, wrap(`\pard {\uc20 a\u8364`+fallback+`b\u8364\'3f\'3f`+strings.Repeat("?", 18)+`c}\par`), nil)
+	if got, want := blocks(doc)[0].Text, "a\u20acb\u20acc"; got != want {
+		t.Errorf("text %q, want %q", got, want)
+	}
+}

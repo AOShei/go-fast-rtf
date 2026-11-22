@@ -11,6 +11,8 @@
 - A PNG's width and height are given up to the largest the PNG
   specification allows; in v0.1.1 sizes above 16,777,216 pixels were
   given as unknown.
+- `\ucN` above 16 is read as it is: in v0.1.1 it was taken as 16, and
+  the fallback bytes past the 16th of each `\uN` were given as text.
 - README: the bounds on data used only inside the library are listed.
 
 ## v0.1.1 (2026-11-22)

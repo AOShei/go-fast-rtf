@@ -131,7 +131,9 @@ func (r *reader) word(t token.Token) {
 	case "deflang":
 		r.lang = v
 	case "uc":
-		g.uc = min(max(v, 0), 16)
+		// Any count the lexer gives (32 bits): skipping costs no more than
+		// reading the bytes skipped.
+		g.uc = max(v, 0)
 	case "u":
 		r.unicode(v)
 	case "fonttbl":

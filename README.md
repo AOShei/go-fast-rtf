@@ -203,7 +203,7 @@ warnings; nine levels of a list definition; a control word's name up to
 32 letters and its number up to 10 digits, a longer number being taken
 as the largest 32-bit one (the specification bounds both more tightly);
 font names are not read.
-Table nesting deeper than 64 and `\ucN` above 16 are taken as 64 and 16.
+Table nesting deeper than 64 is taken as 64.
 
 ## What is not read
 

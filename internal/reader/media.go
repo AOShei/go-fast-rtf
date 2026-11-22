@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/AOShei/go-fast-core"
 )
@@ -343,7 +344,7 @@ func pngSize(b []byte) (int, int) {
 		return 0, 0
 	}
 	w, h := binary.BigEndian.Uint32(b[16:20]), binary.BigEndian.Uint32(b[20:24])
-	if w > 1<<24 || h > 1<<24 {
+	if w > 1<<31-1 || h > 1<<31-1 { // past the largest the PNG specification allows
 		return 0, 0
 	}
 	return int(w), int(h)
@@ -498,7 +499,10 @@ func (r *reader) endObject(o *object) {
 		r.doc.Children = append(r.doc.Children, r.opts.ExtractChild(r.ctx, name, "", nil, o.n))
 		return
 	}
-	payload, label := ole1Native(o.data)
+	payload, label, labelCut := ole1Native(o.data)
+	if labelCut > 0 {
+		r.cut(atDoc, "embedded file labels (Package) are cut at", maxLabel, 1, int64(labelCut))
+	}
 	if label != "" {
 		name = label
 	} else {
@@ -510,43 +514,58 @@ func (r *reader) endObject(o *object) {
 	r.doc.Children = append(r.doc.Children, r.opts.ExtractChild(r.ctx, name, "", bytes.NewReader(payload), int64(len(payload))))
 }
 
+// maxLabel bounds the label of a packaged file, which names its child.
+const maxLabel = 4096
+
 // ole1Native returns the native data of an OLE 1.0 object stream (the
 // ObjectHeader of [MS-OLEDS] 2.2.4 followed by its data), and for an object
-// of the class Package the file it packages and that file's label. It
-// returns nil when the stream is not of that form.
-func ole1Native(b []byte) (payload []byte, label string) {
+// of the class Package the file it packages and that file's label, cut
+// at maxLabel bytes (cut is how many bytes were left out). It returns nil
+// when the stream is not of that form.
+func ole1Native(b []byte) (payload []byte, label string, cut int) {
 	rd := &byteReader{b: b}
 	rd.u32() // OLEVersion
 	format := rd.u32()
 	class := rd.lpstr()
 	if rd.bad || format != 2 {
-		return nil, ""
+		return nil, "", 0
 	}
 	rd.lpstr() // topic
 	rd.lpstr() // item
 	size := rd.u32()
 	if rd.bad || int64(size) > int64(len(rd.b)-rd.i) {
-		return nil, ""
+		return nil, "", 0
 	}
 	native := rd.b[rd.i : rd.i+int(size)]
 	if !strings.EqualFold(strings.TrimRight(class, "\x00"), "Package") {
-		return native, ""
+		return native, "", 0
 	}
 	// The Packager format: a signature, a label, the original path, then
 	// a type, a temporary path and the file's data.
 	p := &byteReader{b: native}
 	p.u16()
 	lbl := p.cstr()
+	if p.bad {
+		return native, "", 0
+	}
+	if len(lbl) > maxLabel {
+		k := maxLabel // not inside a UTF-8 sequence, where it is one
+		for i := 0; i < 3 && !utf8.RuneStart(lbl[k]); i++ {
+			k--
+		}
+		cut, lbl = len(lbl)-k, lbl[:k]
+	}
+	label = cleanText(lbl)
 	p.cstr() // original path
 	if typ := p.u32(); typ != 0x00030000 || p.bad {
-		return native, cleanText(lbl)
+		return native, label, cut
 	}
 	p.skip(int(p.u32())) // temporary path
 	n := p.u32()
 	if p.bad || int64(n) > int64(len(p.b)-p.i) {
-		return native, cleanText(lbl)
+		return native, label, cut
 	}
-	return p.b[p.i : p.i+int(n)], cleanText(lbl)
+	return p.b[p.i : p.i+int(n)], label, cut
 }
 
 type byteReader struct {
@@ -594,9 +613,11 @@ func (r *byteReader) lpstr() string {
 	return s
 }
 
+// cstr reads a string ended by a NUL byte. Its length is bounded by the
+// data, which the decode budget bounds.
 func (r *byteReader) cstr() string {
 	j := bytes.IndexByte(r.b[min(r.i, len(r.b)):], 0)
-	if j < 0 || j > 4096 {
+	if j < 0 {
 		r.bad = true
 		return ""
 	}

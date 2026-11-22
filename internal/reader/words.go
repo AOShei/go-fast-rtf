@@ -131,7 +131,9 @@ func (r *reader) word(t token.Token) {
 	case "deflang":
 		r.lang = v
 	case "uc":
-		g.uc = min(max(v, 0), 16)
+		// Any count the lexer gives (32 bits): skipping costs no more than
+		// reading the bytes skipped.
+		g.uc = max(v, 0)
 	case "u":
 		r.unicode(v)
 	case "fonttbl":
@@ -340,6 +342,7 @@ func (r *reader) word(t token.Token) {
 		g.onClose = func() {
 			if f != nil && f.kind == flowNote {
 				f.date = dttm(parseInt(b.String()))
+				r.cutBuf(atBody, "comment dates (\\atndate) are cut at", b)
 			}
 		}
 	case "header", "headerl", "headerr", "headerf", "footer", "footerl", "footerr", "footerf":

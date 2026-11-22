@@ -5,7 +5,7 @@ into the shared go-fast document model,
 [`gofastcore.Document`](https://github.com/AOShei/go-fast-core). Standard
 library and go-fast modules only.
 
-**Status: v0.1.1 (2026-11-22).** Built on go-fast-core v0.1.1
+**Status: v0.1.2 (2026-11-22).** Built on go-fast-core v0.1.1
 (schema 0.2).
 
 ## Using it
@@ -178,7 +178,8 @@ variable's or custom property's name 1 KiB and value 64 KiB, a tracked
 deletion 1 MiB, a comment author 1 KiB, a form field's name or choice
 4 KiB, a picture's or shape's description 64 KiB, a bookmark name and a
 list marker 256 bytes, an embedded object's name 1 KiB and class 256
-bytes, a revision author 512 bytes; 16,384 document variables, as many
+bytes, a packaged file's label (which names the child) 4 KiB, a comment
+date (`\atndate`) 32 bytes, a revision author 512 bytes; 16,384 document variables, as many
 custom properties and as many revision authors are kept, 65,536 fonts,
 paragraph styles, character styles, lists and list overrides each, and
 1,024 choices of one form field; fields nest at most 256 deep; the text after
@@ -191,6 +192,18 @@ bytes: on the body for what goes to the body, on the stored part for
 stored data (on the document when there is no stored part), and on the
 document for metadata and the names of embedded objects. Without
 `ImagesData`, at most 64 KiB of a picture is decoded, to read its size.
+
+Other bounds apply to data that is only used inside the library, never
+given, and say nothing: a style name is read up to 512 bytes, only to
+find "heading N"; a shape property's name up to 256 bytes, and the values
+of `fHidden` and `fHorizRule`, to match and read them; `\*\template` up to
+2 KiB, only to see whether it is remote; the first 64 words of a field
+instruction, to find a `HYPERLINK` target and the fields counted in
+warnings; nine levels of a list definition; a control word's name up to
+32 letters and its number up to 10 digits, a longer number being taken
+as the largest 32-bit one (the specification bounds both more tightly);
+font names are not read.
+Table nesting deeper than 64 is taken as 64.
 
 ## What is not read
 

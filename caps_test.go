@@ -1,7 +1,9 @@
 package gofastrtf
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -404,4 +406,65 @@ func TestCutOfWhiteSpace(t *testing.T) {
 		t.Fatal("no stored part")
 	}
 	wantCut(t, "stored", stored.Warnings, "document variable values are cut at 65536 bytes")
+}
+
+// TestCommentDateCut checks that a comment date (\atndate) longer than
+// its bound is reported: its number is cut, and so is the date given.
+func TestCommentDateCut(t *testing.T) {
+	doc := extract(t, wrap(`\pard C\chatn{\*\annotation{\*\atndate `+strings.Repeat("0", 40)+`1}note}\par`), nil)
+	wantCut(t, "body", doc.Parts[0].Warnings, `comment dates (\atndate) are cut at 32 bytes`)
+	doc = extract(t, wrap(`\pard C\chatn{\*\annotation{\*\atndate 1234567890}note}\par`), nil)
+	if got := limitWarnings(doc.Parts[0].Warnings); got != nil {
+		t.Errorf("a date of ordinary length: %q", got)
+	}
+}
+
+// TestPackageLabelCut checks that the label of a packaged file, which
+// names the child, is cut at its bound with a warning on the document,
+// and that a long original path, which is not given, does not stop the
+// file from being unpacked.
+func TestPackageLabelCut(t *testing.T) {
+	var name, data string
+	child := func(ctx context.Context, n, mime string, r io.ReaderAt, size int64, o *gofastcore.Options) (*gofastcore.Document, error) {
+		buf := make([]byte, size)
+		r.ReadAt(buf, 0)
+		name, data = n, string(buf)
+		d := gofastcore.New("txt")
+		p := gofastcore.Part{Kind: gofastcore.PartBody, Number: 1}
+		p.Finish()
+		d.Parts = append(d.Parts, p)
+		return d, nil
+	}
+	obj := func(hex string) string {
+		return wrap(`\pard {\object\objemb{\*\objclass Package}{\*\objdata ` + hex + `}{\result r}}\par`)
+	}
+	doc := extract(t, obj(packageHexWith(strings.Repeat("L", 5000), `C:\x.txt`)), &gofastcore.Options{Child: child})
+	if name != strings.Repeat("L", 4096) || data != "hello" {
+		t.Errorf("child %d bytes of name, data %q", len(name), data)
+	}
+	wantCut(t, "document", doc.Warnings, "embedded file labels (Package) are cut at 4096 bytes: 1 cut, 904 bytes left out")
+
+	doc = extract(t, obj(packageHexWith("note.txt", `C:\`+strings.Repeat("p", 5000))), &gofastcore.Options{Child: child})
+	if name != "note.txt" || data != "hello" {
+		t.Errorf("long path: child %q, data %q", name, data)
+	}
+	if got := limitWarnings(doc.Warnings); got != nil {
+		t.Errorf("long path: %q", got)
+	}
+}
+
+// TestLargePNGSize checks that a PNG's size is given up to the largest
+// its specification allows.
+func TestLargePNGSize(t *testing.T) {
+	png := "89504e470d0a1a0a0000000d49484452" + "02000000" + "00000008" + "08060000001f15c489"
+	doc := extract(t, wrap(`\pard {\pict\pngblip `+png+`}\par`), nil)
+	var img *gofastcore.Image
+	for _, b := range doc.Parts[0].Blocks {
+		if b.Image != nil {
+			img = b.Image
+		}
+	}
+	if img == nil || img.Width != 1<<25 || img.Height != 8 {
+		t.Errorf("image %+v", img)
+	}
 }

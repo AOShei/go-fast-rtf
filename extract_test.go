@@ -392,13 +392,16 @@ func TestBinData(t *testing.T) {
 
 // packageHex is the hexadecimal of an OLE 1.0 stream of class Package
 // holding "hello" in a file labelled note.txt.
-func packageHex() string {
+func packageHex() string { return packageHexWith("note.txt", `C:\note.txt`) }
+
+// packageHexWith is packageHex with the given label and original path.
+func packageHexWith(label, path string) string {
 	var b []byte
 	le32 := func(v uint32) { b = append(b, byte(v), byte(v>>8), byte(v>>16), byte(v>>24)) }
 	lp := func(s string) { le32(uint32(len(s) + 1)); b = append(b, s...); b = append(b, 0) }
 	var pkg []byte
 	pkg = append(pkg, 2, 0)
-	pkg = append(pkg, "note.txt\x00C:\\note.txt\x00"...)
+	pkg = append(pkg, label+"\x00"+path+"\x00"...)
 	pkg = append(pkg, 0, 0, 3, 0)
 	pkg = append(pkg, 8, 0, 0, 0)
 	pkg = append(pkg, "C:\\t.txt"...)

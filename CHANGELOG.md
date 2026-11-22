@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.1.2 (2026-11-22)
+
+- A comment date (`\atndate`) longer than 32 bytes, whose number is then
+  cut, gives `limit.exceeded` on the body.
+- The label of a packaged file (an OLE `Package`), which names the
+  child, is cut at 4 KiB with `limit.exceeded` on the document. In
+  v0.1.1 a label or original path longer than 4 KiB stopped the
+  unpacking: the child was the whole package, named by `\objname`.
+- A PNG's width and height are given up to the largest the PNG
+  specification allows; in v0.1.1 sizes above 16,777,216 pixels were
+  given as unknown.
+- README: the bounds on data used only inside the library are listed.
+
 ## v0.1.1 (2026-11-22)
 
 - Built on go-fast-core v0.1.1: a part or document keeps at most 1,000

@@ -340,6 +340,7 @@ func (r *reader) word(t token.Token) {
 		g.onClose = func() {
 			if f != nil && f.kind == flowNote {
 				f.date = dttm(parseInt(b.String()))
+				r.cutBuf(atBody, "comment dates (\\atndate) are cut at", b)
 			}
 		}
 	case "header", "headerl", "headerr", "headerf", "footer", "footerl", "footerr", "footerf":

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (v0.2.0)
+## v0.2.0 (2026-11-23)
 
 - **Shared warning codes** (go-fast-core v0.1.2). `rtf.unread_content`
   is now `input.unread_content`, and `rtf.control_characters_removed` is

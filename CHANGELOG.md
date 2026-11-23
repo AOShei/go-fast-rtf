@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.2.1 (2026-11-24)
+
+- **go-fast-core v0.1.4** (was v0.1.2): `Document.Text` and `Markdown`
+  allocate their result once. The output is unchanged.
+- **Benchmark** against the RTF tools in use today (`bench/`), and
+  **`GOGC` documented** (README): reading at 100, 200 and 400. The
+  library keeps Go's default; trading memory for speed is the caller's
+  choice.
+
 ## v0.2.0 (2026-11-23)
 
 - **Shared warning codes** (go-fast-core v0.1.2). `rtf.unread_content`

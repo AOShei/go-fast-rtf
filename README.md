@@ -8,6 +8,14 @@ library and go-fast modules only.
 **Status: v0.2.0 (2026-11-23).** Built on go-fast-core v0.1.2
 (schema 0.2).
 
+**Speed and memory.** Against the Python and Rust tools in use, on 1,250 RTF files from Common Crawl, see [`bench/`](bench/README.md). Go's garbage collector can be given more memory for less work with `GOGC` in the environment (or `debug.SetGCPercent` in a program); the library and its command keep Go's default, 100. The 1,250 files (241 MB), each read from disk as a pipeline does (wall time, peak memory):
+
+| `GOGC` | One worker | Peak | 24 workers | Peak |
+|---|---|---|---|---|
+| 100 (default) | 2.05 s | 28 MB | 0.29 s | 120 MB |
+| 200 | 1.99 s | 33 MB | 0.28 s | 189 MB |
+| 400 | 1.97 s | 47 MB | 0.25 s | 232 MB |
+
 ## Using it
 
 ```go

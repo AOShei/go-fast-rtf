@@ -1,17 +1,20 @@
 """Write the comparison tables of the email, RTF or ODF benchmark.
 
-    python -I report_doc.py FORMAT DATA_DIR > comparison.md
+    python -I report_doc.py FORMAT DATA_DIR [GOGC_DIR] > comparison.md
 
 FORMAT is email, rtf or odf. DATA_DIR holds, for each set of files
 (email: email; rtf: rtf; odf: odt, ods, odp), results-SET/TOOL-WORKERS
 (run_all_doc.sh) and scores-SET.json (score_email.py for email,
 score_text.py against LibreOffice for the others; for ODS also
 scores-ods-shown.json, against cells as displayed), and SET.list.
+GOGC_DIR, if given, holds SET/gogcG-W/measure.json: go-fast run with
+GOGC=G (100, 200, 400) and W workers.
 """
 import json, os, platform, subprocess, sys
 from importlib import metadata
 
 FORMAT, D = sys.argv[1], sys.argv[2]
+GOGC_DIR = sys.argv[3] if len(sys.argv) > 3 else None
 LIB = {"email": "go-fast-email", "rtf": "go-fast-rtf", "odf": "go-fast-odf"}[FORMAT]
 SETS = {"email": ["email"], "rtf": ["rtf"], "odf": ["odt", "ods", "odp"]}[FORMAT]
 LABEL = {"go-fast": f"**{LIB}**", "stdlib-email": "Python `email` (stdlib)", "mail-parser": "mail-parser (Python)",
@@ -107,6 +110,24 @@ for s in SETS:
                       "find the machine quiet; its time may be a little high.\n")
     if NOTES[s]:
         print(NOTES[s] + "\n")
+    if GOGC_DIR and os.path.exists(os.path.join(GOGC_DIR, s, "gogc100-1", "measure.json")):
+        g = {}
+        for gc in (100, 200, 400):
+            for w in (1, 24):
+                m = json.load(open(os.path.join(GOGC_DIR, s, f"gogc{gc}-{w}", "measure.json")))
+                g[f"{gc}-{w}"] = {"wall_s": m["wall_s"], "peak_mb": m["peak_rss_mb"]}
+        out[s]["gogc"] = g
+        print(f"### {LIB} and `GOGC`\n")
+        print("Go's garbage collector can be given more memory for less work with `GOGC` in the environment "
+              "(or `debug.SetGCPercent`); the library and its command keep Go's default, 100. The same run as above "
+              "with each setting (wall time, peak memory):\n")
+        print("| `GOGC` | One worker | Peak | 24 workers | Peak |")
+        print("|---|---|---|---|---|")
+        for gc in (100, 200, 400):
+            a, b = g[f"{gc}-1"], g[f"{gc}-24"]
+            label = "100 (default)" if gc == 100 else str(gc)
+            print(f"| {label} | {a['wall_s']:.2f} s | {a['peak_mb']:,.0f} MB | {b['wall_s']:.2f} s | {b['peak_mb']:,.0f} MB |")
+        print()
     sp = os.path.join(D, f"scores-{s}.json")
     if not os.path.exists(sp):
         continue

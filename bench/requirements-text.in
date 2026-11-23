@@ -1,0 +1,24 @@
+# Tools compared with go-fast-html (and later go-fast-email, -rtf, -odf).
+warcio
+beautifulsoup4
+lxml
+html2text
+inscriptis
+trafilatura
+resiliparse
+selectolax
+markitdown
+markdown-it-py
+mistune
+ebooklib
+pandas
+polars
+nbconvert
+striprtf
+odfpy
+mail-parser
+extract-msg
+psutil
+playwright
+kreuzberg
+eml-parser

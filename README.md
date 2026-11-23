@@ -5,7 +5,7 @@ into the shared go-fast document model,
 [`gofastcore.Document`](https://github.com/AOShei/go-fast-core). Standard
 library and go-fast modules only.
 
-**Status: v0.1.2 (2026-11-22).** Built on go-fast-core v0.1.1
+**Status: v0.2.0 (2026-11-23).** Built on go-fast-core v0.1.2
 (schema 0.2).
 
 ## Using it
@@ -159,8 +159,10 @@ Besides the shared codes (`limit.exceeded`, `part.no_text`,
 | `text.unmapped_glyphs` | warning | bytes in a code page that is not decoded, bytes their code page leaves undefined, bytes above 0x7F in a Symbol font (`\fcharset2`) other than 0xB7, unpaired surrogates. One warning for the body: with more than one code page it gives the total, says what happened in each of the first eight (in the order of their numbers) and counts the rest. The first 64 code pages met are counted one by one; past them the rest are counted together, and the message says "at least" so many more |
 | `image.unsupported_encoding` | warning | with `ImagesData`, a picture in a format whose bytes cannot be given as a file (device-dependent bitmap, OS/2 metafile, no format named) |
 | `input.trailing_data` | info | data follows the document's closing brace; the message gives how many bytes. Its text is in the stored part as `after_end`. On the document when there is no stored part to carry it |
-| `rtf.unread_content` | warning | content this version does not read: equations (`\mmath`) |
-| `rtf.control_characters_removed` | info | control characters with no meaning as text were removed |
+| `input.unread_content` | warning | content this version does not read: equations (`\mmath`); the message names it with the count |
+| `text.control_characters_removed` | info | control characters with no meaning as text (in `\'xx`, `\uN` or the bytes of the text) were removed, in the body or the metadata; the message gives the count. Raw line breaks in the source are not text and are not counted |
+
+This library has no codes of its own. `rtf.unread_content` and `rtf.control_characters_removed`, before v0.2.0, are the two shared codes above; the Go names `WarnUnreadContent` and `WarnControlCharsRemoved` are deprecated and have the shared values.
 
 ## Limits
 

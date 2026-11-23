@@ -18,16 +18,6 @@ import (
 	"github.com/AOShei/go-fast-rtf/internal/token"
 )
 
-// Warning codes of this library.
-const (
-	// WarnUnreadContent: the file holds content of a kind this version
-	// does not read (an equation); the message names it.
-	WarnUnreadContent = "rtf.unread_content"
-	// WarnControlCharsRemoved: control characters with no meaning as text
-	// were removed.
-	WarnControlCharsRemoved = "rtf.control_characters_removed"
-)
-
 // Config is what the reader is told besides the input.
 type Config struct {
 	Opts          *gofastcore.Options
@@ -769,7 +759,7 @@ func (r *reader) finish() {
 			strconv.Itoa(r.inserted)+" insertions, "+strconv.Itoa(r.deleted)+" deletions; text is given with all changes accepted")
 	}
 	if r.removed > 0 {
-		part.Warn(gofastcore.SeverityInfo, WarnControlCharsRemoved, strconv.Itoa(r.removed))
+		part.Warn(gofastcore.SeverityInfo, gofastcore.WarnTextControlCharactersRemoved, controlsMessage(r.removed))
 	}
 	r.unmappedWarnings(part)
 	if r.unsupported > 0 {
@@ -785,7 +775,7 @@ func (r *reader) finish() {
 			names = append(names, fmt.Sprintf("%s (%d)", k, n))
 		}
 		sort.Strings(names)
-		part.Warn(gofastcore.SeverityWarning, WarnUnreadContent, strings.Join(names, ", "))
+		part.Warn(gofastcore.SeverityWarning, gofastcore.WarnInputUnreadContent, "content this version does not read: "+strings.Join(names, ", "))
 	}
 	if r.external > 0 {
 		r.doc.Warn(gofastcore.SeverityWarning, gofastcore.WarnInputExternalReference, fmt.Sprintf("%d, not counting hyperlinks; nothing was fetched", r.external))
@@ -1042,4 +1032,12 @@ func (r *reader) storedPart() {
 	r.cutWarnings(atStore, r.store.Warn)
 	r.store.Finish()
 	r.doc.Parts = append(r.doc.Parts, *r.store)
+}
+
+// controlsMessage says that n control characters were removed.
+func controlsMessage(n int) string {
+	if n == 1 {
+		return "1 control character with no meaning as text was removed from the text"
+	}
+	return strconv.Itoa(n) + " control characters with no meaning as text were removed from the text"
 }

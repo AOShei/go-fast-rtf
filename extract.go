@@ -38,11 +38,14 @@ const (
 	DefaultMaxGroupDepth = 1024
 )
 
-// Warning codes specific to this library. Each states a fact about the
-// file. The codes shared by all go-fast libraries are in gofastcore, and
-// this library raises these of them besides the ones about parts, limits
-// and embedded documents:
+// Warning codes. This library raises only the codes shared by all go-fast
+// libraries (gofastcore); besides the ones about parts, limits and
+// embedded documents, these:
 //
+//	text.control_characters_removed  control characters with no meaning as
+//	                          text were removed; the message gives the count
+//	input.unread_content      content this version does not read (an
+//	                          equation); the message names it
 //	input.active_content      a DDE or DDEAUTO field, or an ActiveX control
 //	input.external_reference  a linked object, an INCLUDEPICTURE,
 //	                          INCLUDETEXT, INCLUDE, LINK or IMPORT field, a
@@ -56,12 +59,21 @@ const (
 //	image.unsupported_encoding
 //	structure.heading_level_clamped
 const (
-	// WarnUnreadContent: the file holds content of a kind this version
-	// does not read (an equation); the message names it.
-	WarnUnreadContent = reader.WarnUnreadContent
-	// WarnControlCharsRemoved: control characters with no meaning as text
-	// were removed from extracted strings.
-	WarnControlCharsRemoved = reader.WarnControlCharsRemoved
+	// WarnUnreadContent was rtf.unread_content, raised when the file
+	// holds content of a kind this version does not read (an equation).
+	//
+	// Deprecated: the event is go-fast-core's shared code
+	// input.unread_content (gofastcore.WarnInputUnreadContent) since
+	// v0.2.0; this name has that value.
+	WarnUnreadContent = gofastcore.WarnInputUnreadContent
+	// WarnControlCharsRemoved was rtf.control_characters_removed, raised
+	// when control characters with no meaning as text were removed.
+	//
+	// Deprecated: the event is go-fast-core's shared code
+	// text.control_characters_removed
+	// (gofastcore.WarnTextControlCharactersRemoved) since v0.2.0; this
+	// name has that value.
+	WarnControlCharsRemoved = gofastcore.WarnTextControlCharactersRemoved
 )
 
 // Extractor extracts RTF files. The zero value is ready to use and safe for

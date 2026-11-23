@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased (v0.2.0)
+
+- **Shared warning codes** (go-fast-core v0.1.2). `rtf.unread_content`
+  is now `input.unread_content`, and `rtf.control_characters_removed` is
+  `text.control_characters_removed`, as every go-fast library raises
+  them. The JSON code strings change; the Go names `WarnUnreadContent`
+  and `WarnControlCharsRemoved` are deprecated and have the new values,
+  so code that compares with them keeps working. The control-character
+  message gives the count in words ("3 control characters with no
+  meaning as text were removed from the text"), not the number alone;
+  the unread-content message begins "content this version does not
+  read:". Requires go-fast-core v0.1.2.
+
 ## v0.1.2 (2026-11-22)
 
 - A comment date (`\atndate`) longer than 32 bytes, whose number is then

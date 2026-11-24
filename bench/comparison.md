@@ -16,11 +16,11 @@ Each tool reads every file in one long-lived process, the way a pipeline does, w
 
 | Tool | Wall | Against go-fast-rtf | CPU | Peak memory | Failed | Median | 95th | 99th | Slowest file |
 |---|---|---|---|---|---|---|---|---|---|
-| rtf-parser (Rust crate) | 0.94 s | 0.46 times | 0.9 s | 51 MB | 45 | 0.14 ms | 3.44 ms | 7.56 ms | 29 ms |
-| **go-fast-rtf** | 2.05 s |  | 2.2 s | 28 MB | 4 | 0.39 ms | 8.15 ms | 16.32 ms | 34 ms |
-| Kreuzberg (Rust core, Python) | 6.58 s | 3.22 times | 6.6 s | 181 MB | 0 | 0.76 ms | 19.60 ms | 80.05 ms | 459 ms |
-| striprtf (Python) | 18.70 s | 9.14 times | 18.6 s | 48 MB | 0 | 2.41 ms | 68.39 ms | 206.51 ms | 459 ms |
-| pandoc (a process a file) ¹ | 146.65 s | 71.66 times | 138.3 s | 901 MB | 15 | 78.09 ms | 288.71 ms | 599.85 ms | 2105 ms |
+| rtf-parser (Rust crate) | 0.94 s | 0.47 times | 0.9 s | 51 MB | 45 | 0.14 ms | 3.44 ms | 7.56 ms | 29 ms |
+| **go-fast-rtf** | 2.02 s |  | 2.1 s | 25 MB | 4 | 0.39 ms | 7.77 ms | 17.07 ms | 35 ms |
+| Kreuzberg (Rust core, Python) | 6.58 s | 3.26 times | 6.6 s | 181 MB | 0 | 0.76 ms | 19.60 ms | 80.05 ms | 459 ms |
+| striprtf (Python) | 18.70 s | 9.25 times | 18.6 s | 48 MB | 0 | 2.41 ms | 68.39 ms | 206.51 ms | 459 ms |
+| pandoc (a process a file) ¹ | 146.65 s | 72.53 times | 138.3 s | 901 MB | 15 | 78.09 ms | 288.71 ms | 599.85 ms | 2105 ms |
 
 ¹ Other processes used 21 s of CPU during this run, after five attempts to find the machine quiet; its time may be a little high.
 
@@ -28,11 +28,11 @@ Each tool reads every file in one long-lived process, the way a pipeline does, w
 
 | Tool | Wall | Against go-fast-rtf | CPU | Peak memory | Failed | Median | 95th | 99th | Slowest file |
 |---|---|---|---|---|---|---|---|---|---|
-| rtf-parser (Rust crate) | 0.17 s | 0.57 times | 1.7 s | 374 MB | 45 | 0.21 ms | 6.24 ms | 19.35 ms | 64 ms |
-| **go-fast-rtf** | 0.29 s |  | 3.9 s | 120 MB | 4 | 0.78 ms | 17.26 ms | 35.02 ms | 101 ms |
-| Kreuzberg (Rust core, Python) | 0.98 s | 3.39 times | 11.3 s | 1,582 MB | 0 | 1.34 ms | 35.55 ms | 130.08 ms | 589 ms |
-| striprtf (Python) | 2.29 s | 7.94 times | 29.5 s | 477 MB | 0 | 3.65 ms | 134.83 ms | 362.27 ms | 828 ms |
-| pandoc (a process a file) | 22.14 s | 76.62 times | 366.1 s | 6,219 MB | 15 | 202.73 ms | 798.86 ms | 1984.90 ms | 8261 ms |
+| rtf-parser (Rust crate) | 0.17 s | 0.55 times | 1.7 s | 374 MB | 45 | 0.21 ms | 6.24 ms | 19.35 ms | 64 ms |
+| **go-fast-rtf** | 0.30 s |  | 3.8 s | 116 MB | 4 | 0.82 ms | 17.30 ms | 36.91 ms | 91 ms |
+| Kreuzberg (Rust core, Python) | 0.98 s | 3.25 times | 11.3 s | 1,582 MB | 0 | 1.34 ms | 35.55 ms | 130.08 ms | 589 ms |
+| striprtf (Python) | 2.29 s | 7.62 times | 29.5 s | 477 MB | 0 | 3.65 ms | 134.83 ms | 362.27 ms | 828 ms |
+| pandoc (a process a file) | 22.14 s | 73.57 times | 366.1 s | 6,219 MB | 15 | 202.73 ms | 798.86 ms | 1984.90 ms | 8261 ms |
 
 go-fast-rtf's 4 failures are files that are not RTF (one plain UTF-8 text, three PHP warning pages, served as RTF); it refuses them as not RTF, where the other tools give their bytes as text.
 
@@ -42,9 +42,9 @@ Go's garbage collector can be given more memory for less work with `GOGC` in the
 
 | `GOGC` | One worker | Peak | 24 workers | Peak |
 |---|---|---|---|---|
-| 100 (default) | 2.05 s | 28 MB | 0.29 s | 120 MB |
-| 200 | 1.99 s | 33 MB | 0.28 s | 189 MB |
-| 400 | 1.97 s | 47 MB | 0.25 s | 232 MB |
+| 100 (default) | 2.02 s | 22 MB | 0.29 s | 132 MB |
+| 200 | 1.97 s | 26 MB | 0.27 s | 216 MB |
+| 400 | 1.89 s | 38 MB | 0.27 s | 217 MB |
 
 ### Accuracy
 

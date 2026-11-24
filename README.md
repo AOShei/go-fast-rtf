@@ -12,9 +12,9 @@ library and go-fast modules only.
 
 | `GOGC` | One worker | Peak | 24 workers | Peak |
 |---|---|---|---|---|
-| 100 (default) | 2.05 s | 28 MB | 0.29 s | 120 MB |
-| 200 | 1.99 s | 33 MB | 0.28 s | 189 MB |
-| 400 | 1.97 s | 47 MB | 0.25 s | 232 MB |
+| 100 (default) | 2.02 s | 22 MB | 0.29 s | 132 MB |
+| 200 | 1.97 s | 26 MB | 0.27 s | 216 MB |
+| 400 | 1.89 s | 38 MB | 0.27 s | 217 MB |
 
 ## Using it
 

@@ -9,14 +9,14 @@ The tables are in [`comparison.md`](comparison.md). This file says what they sho
 
 ## What the comparison shows
 
-The input is 1,250 RTF files, 241 MB, found in Common Crawl and kept as served. These figures are for go-fast-rtf v0.2.0.
+The input is 1,250 RTF files, 241 MB, found in Common Crawl and kept as served. The go-fast-rtf figures are for v0.2.1 (go-fast-core v0.1.4), measured on 2026-11-24; the other tools' are from 2026-11-23. Every file gives the same text, or the same error, as with v0.2.0.
 
-- **Speed.** With one worker, go-fast-rtf reads them all in 2.05 s.
+- **Speed.** With one worker, go-fast-rtf reads them all in 2.02 s.
   - The Rust `rtf-parser` crate is faster (0.94 s), but it fails on 45 files and its text scores far lower (F1 0.670).
-  - Every other tool is slower: Kreuzberg 3.2 times, striprtf 9 times, pandoc (one process per file) about 70 times.
-  - With 24 workers, go-fast-rtf takes 0.29 s. `rtf-parser` takes 0.17 s, Kreuzberg 0.98 s, striprtf 2.3 s and pandoc 22 s.
-- **The slowest file.** go-fast-rtf's slowest file took 34 ms with one worker and `rtf-parser`'s took 29 ms. Kreuzberg and striprtf each had a file taking 459 ms, and pandoc one taking 2.1 s.
-- **Memory.** With one worker, go-fast-rtf peaks at 28 MB, the least of all. With 24 workers it peaks at 120 MB. The others peak at:
+  - Every other tool is slower: Kreuzberg 3.3 times, striprtf 9 times, pandoc (one process per file) about 70 times.
+  - With 24 workers, go-fast-rtf takes 0.30 s. `rtf-parser` takes 0.17 s, Kreuzberg 0.98 s, striprtf 2.3 s and pandoc 22 s.
+- **The slowest file.** go-fast-rtf's slowest file took 35 ms with one worker and `rtf-parser`'s took 29 ms. Kreuzberg and striprtf each had a file taking 459 ms, and pandoc one taking 2.1 s.
+- **Memory.** With one worker, go-fast-rtf peaks at 25 MB, the least of all. With 24 workers it peaks at 116 MB. The others peak at:
   - `rtf-parser`: 374 MB;
   - striprtf: 477 MB;
   - Kreuzberg: 1.6 GB;
@@ -32,7 +32,7 @@ The input is 1,250 RTF files, 241 MB, found in Common Crawl and kept as served. 
   | `rtf-parser` | 0.670 |
 
 - **Failures.** go-fast-rtf refused 4 files. None of them is RTF: one is plain UTF-8 text and three are PHP warning pages, served as RTF. It refuses them as not RTF, while the other tools give their bytes as text. pandoc failed on 15 files and `rtf-parser` on 45.
-- **Where the time goes.** go-fast-rtf allocates little: 0.56 GB for the 241 MB of the batch. Its time goes to the lexer, which reads one byte at a time and looks up control words in a map. That is where any further speed would come from.
+- **Where the time goes.** go-fast-rtf allocates little: 0.56 GB for the 241 MB of the batch (v0.2.0). Its time goes to the lexer, which reads one byte at a time and looks up control words in a map. That is where any further speed would come from.
 
 ## `GOGC`
 
@@ -40,9 +40,9 @@ Go's garbage collector can be given more memory for less work, with `GOGC` in th
 
 | `GOGC` | One worker | Peak | 24 workers | Peak |
 |---|---|---|---|---|
-| 100 (default) | 2.05 s | 28 MB | 0.29 s | 120 MB |
-| 200 | 1.99 s | 33 MB | 0.28 s | 189 MB |
-| 400 | 1.97 s | 47 MB | 0.25 s | 232 MB |
+| 100 (default) | 2.02 s | 22 MB | 0.29 s | 132 MB |
+| 200 | 1.97 s | 26 MB | 0.27 s | 216 MB |
+| 400 | 1.89 s | 38 MB | 0.27 s | 217 MB |
 
 ## How it is measured
 

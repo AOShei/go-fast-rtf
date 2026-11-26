@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **go-fast-core v0.1.10** (was v0.1.4). Of the core code this module
+  uses, the only change since v0.1.4 is two new stored kinds: `gofastrtf
+  -stored=` now also accepts `shape_data` and `linked_data`, which Visio
+  drawings in go-fast-ooxml will use.
+
 ## v0.2.1 (2026-11-24)
 
 - **go-fast-core v0.1.4** (was v0.1.2): `Document.Text` and `Markdown`

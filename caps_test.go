@@ -206,8 +206,10 @@ func TestBodyBuffersCut(t *testing.T) {
 // message is the one it always was.
 func TestUnmappedAggregated(t *testing.T) {
 	var b strings.Builder
+	// Code pages 30000 to 34999: none is decoded (go-fast-core's charset
+	// knows 20866 and 21866, KOI8, in the range this test used before).
 	for cp := range 5000 {
-		fmt.Fprintf(&b, `{\ansicpg%d \'e9}`, 20000+cp)
+		fmt.Fprintf(&b, `{\ansicpg%d \'e9}`, 30000+cp)
 	}
 	// The font names no character set, so text is in the \ansicpg.
 	plain := func(body string) string { return `{\rtf1\ansi\deff0{\fonttbl{\f0 Times;}}` + body + `}` }
@@ -221,17 +223,17 @@ func TestUnmappedAggregated(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("got %d text.unmapped_glyphs warnings", len(msgs))
 	}
-	for _, want := range []string{"5000 characters or bytes in all are U+FFFD: ", "code page 20000 was not decoded: 1 bytes are U+FFFD; ", "code page 20007 was not decoded", "; and at least 57 more code pages (past the first 64 met they are not told apart), with 4992 more U+FFFD"} {
+	for _, want := range []string{"5000 characters or bytes in all are U+FFFD: ", "code page 30000 was not decoded: 1 bytes are U+FFFD; ", "code page 30007 was not decoded", "; and at least 57 more code pages (past the first 64 met they are not told apart), with 4992 more U+FFFD"} {
 		if !strings.Contains(msgs[0], want) {
 			t.Errorf("message %q lacks %q", msgs[0], want)
 		}
 	}
-	if strings.Contains(msgs[0], "20008") {
+	if strings.Contains(msgs[0], "30008") {
 		t.Errorf("message names more than eight code pages: %q", msgs[0])
 	}
 
-	doc = extract(t, plain(`\pard {\ansicpg20000 \'e9\'e9}\par`), nil)
-	if ws := doc.Parts[0].Warnings; len(ws) == 0 || ws[0].Code != gofastcore.WarnTextUnmappedGlyphs || ws[0].Message != "code page 20000 was not decoded: 2 bytes are U+FFFD" {
+	doc = extract(t, plain(`\pard {\ansicpg30000 \'e9\'e9}\par`), nil)
+	if ws := doc.Parts[0].Warnings; len(ws) == 0 || ws[0].Code != gofastcore.WarnTextUnmappedGlyphs || ws[0].Message != "code page 30000 was not decoded: 2 bytes are U+FFFD" {
 		t.Errorf("one code page: %+v", ws)
 	}
 }

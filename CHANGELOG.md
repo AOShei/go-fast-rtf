@@ -1,11 +1,26 @@
 # Changelog
 
-## Unreleased
+## v0.3.0 (2026-11-27)
 
-- **go-fast-core v0.1.10** (was v0.1.4). Of the core code this module
-  uses, the only change since v0.1.4 is two new stored kinds: `gofastrtf
-  -stored=` now also accepts `shape_data` and `linked_data`, which Visio
-  drawings in go-fast-ooxml will use.
+- **Code pages are decoded by go-fast-core's `charset`** (core v0.1.13,
+  was v0.1.4 in the last release), the decoder every go-fast library now
+  shares; `internal/codepage` moved there, merged with the other
+  libraries' decoders. Where a code page leaves a byte or a pair
+  undefined the decoding is now the WHATWG Encoding Standard's:
+  - a byte 0x80 to 0x9F a single-byte code page leaves undefined is the
+    C1 control of the same value, which the text conventions remove
+    (`text.control_characters_removed`); it was U+FFFD with
+    `text.unmapped_glyphs`;
+  - a lead byte followed by an ASCII byte (0x40 to 0x7F) that makes no
+    character with it is U+FFFD and the ASCII byte is read again (the pair
+    was one U+FFFD);
+  - GBK byte 0x80 is the euro sign; code page 950 has the HKSCS pairs it
+    leaves undefined; KOI8 (20866, 21866) and the ISO-8859 code pages
+    (28591 to 28605) are decoded when a document names them.
+  The corpus (94 RTF files, dev and held-out) gives the same output;
+  reading takes 1.6 % more instructions over the dev files.
+- `gofastrtf -stored=` also accepts `shape_data` and `linked_data`, the
+  stored kinds go-fast-ooxml's Visio drawings use (core v0.1.10).
 
 ## v0.2.1 (2026-11-24)
 

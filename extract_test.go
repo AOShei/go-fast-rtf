@@ -185,10 +185,13 @@ func TestDeletion(t *testing.T) {
 }
 
 func TestUnicodeAndCodePages(t *testing.T) {
-	src := `{\rtf1\ansi\ansicpg1251\deff0{\fonttbl{\f0 Arial;}{\f1\fcharset238 Arial CE;}{\f2\fcharset128 MS Mincho;}}` +
+	// 0x98 is undefined in code page 1251: the C1 control U+0098, as the
+	// WHATWG Encoding Standard has it, which the text conventions remove.
+	// 0xAA is undefined in 1253 (Greek), above the C1 range: U+FFFD.
+	src := `{\rtf1\ansi\ansicpg1251\deff0{\fonttbl{\f0 Arial;}{\f1\fcharset238 Arial CE;}{\f2\fcharset128 MS Mincho;}{\f3\fcharset161 Arial Greek;}}` +
 		`\pard \'cf\'f0\'e8\'e2\'e5\'f2 {\f1 \'b9\'e6} \uc1\u8364?\u-10179\'3f\u-8704\'3f {\uc2\u20013\'a4\'a4 z}\par` +
 		`\pard {\f2 \'82\'a0}\par` +
-		`\pard {\f0 \'98}\par}`
+		`\pard {\f0 \'98}{\f3 \'aa}\par}`
 	doc := extract(t, src, nil)
 	bs := blocks(doc)
 	if len(bs) != 3 {
@@ -203,7 +206,7 @@ func TestUnicodeAndCodePages(t *testing.T) {
 	var undefined bool
 	for _, w := range doc.Parts[0].Warnings {
 		if w.Code == gofastcore.WarnTextUnmappedGlyphs {
-			undefined = undefined || strings.Contains(w.Message, "code page 1251")
+			undefined = undefined || strings.Contains(w.Message, "code page 1253")
 		}
 	}
 	if !undefined {
@@ -252,7 +255,9 @@ func TestDoubleByteDocuments(t *testing.T) {
 
 	// A lead byte at the end of the input, and an unmapped pair, are
 	// U+FFFD with a warning naming the code page.
-	doc := extract(t, `{\rtf1\ansi\ansicpg950{\fonttbl{\f0\fcharset136 MingLiU;}}\pard \'fe\'fe a\'a4`, nil)
+	// (0xC8A5 is in neither code page 950 nor the HKSCS pairs
+	// go-fast-core's charset adds to it.)
+	doc := extract(t, `{\rtf1\ansi\ansicpg950{\fonttbl{\f0\fcharset136 MingLiU;}}\pard \'c8\'a5 a\'a4`, nil)
 	if got := blocks(doc)[0].Text; got != "\ufffd a\ufffd" {
 		t.Errorf("unmapped: %q", got)
 	}

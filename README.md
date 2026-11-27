@@ -5,7 +5,7 @@ into the shared go-fast document model,
 [`gofastcore.Document`](https://github.com/AOShei/go-fast-core). Standard
 library and go-fast modules only.
 
-**Status: v0.2.1 (2026-11-24).** Built on go-fast-core v0.1.4
+**Status: v0.3.0 (2026-11-27).** Built on go-fast-core v0.1.13
 (schema 0.2).
 
 **Speed and memory.** Against the Python and Rust tools in use, on 1,250 RTF files from Common Crawl, see [`bench/`](bench/README.md). Go's garbage collector can be given more memory for less work with `GOGC` in the environment (or `debug.SetGCPercent` in a program); the library and its command keep Go's default, 100. The 1,250 files (241 MB), each read from disk as a pipeline does (wall time, peak memory):
@@ -78,16 +78,24 @@ never shows, a second part of kind `stored` follows it (see below);
 Text is decoded through `\uN` (with the `\ucN` fallback bytes skipped,
 surrogate pairs joined) and `\'hh` through the code page of the current font
 (`\cpgN`, else `\fcharsetN`) or of the document (`\ansicpgN`, `\ansi`,
-`\mac`). Single-byte code pages 874, 1250 to 1258 and Mac Roman (10000) are
-decoded, UTF-8 (65001), and the double-byte code pages 932 (Japanese), 936
-(Simplified Chinese), 949 (Korean) and 950 (Traditional Chinese), in `\'hh`
+`\mac`), decoded by go-fast-core's `charset`, the series' shared decoder.
+Single-byte code pages 874, 1250 to 1258 and
+Mac Roman (10000) are decoded, UTF-8 (65001), and the double-byte code
+pages 932 (Japanese), 936 (Simplified Chinese), 949 (Korean) and 950
+(Traditional Chinese, with the HKSCS pairs 950 leaves undefined), in `\'hh`
 escapes and in raw 8-bit bytes alike; a lead byte and its trail byte may
-come in two escapes. The user-defined areas, which the tables leave out,
-are computed as Windows maps them: in 932, lead bytes 0xF0 to 0xF9 to
-U+E000 to U+E757, and byte 0x80 alone is U+0080; in 936, 0xAAA1 to 0xAFFE,
-0xF8A1 to 0xFEFE and 0xA140 to 0xA7A0 to U+E000 to U+E765. A pair the table does not map, and a lead byte with
-no trail byte, are one U+FFFD each, and `text.unmapped_glyphs` names the
-code page. Other code pages (437, 850, Johab, ...) are not decoded. The ligatures
+come in two escapes. Where a code page leaves a byte or a pair undefined,
+the decoding is the WHATWG Encoding Standard's: a byte 0x80 to 0x9F a
+single-byte code page leaves undefined is the C1 control of the same
+value, which the text conventions then remove (`text.control_characters_removed`);
+in 932, lead bytes 0xF0 to 0xF9 are U+E000 to U+E757 and byte 0x80 alone
+is U+0080; in 936, 0xAAA1 to 0xAFFE, 0xF8A1 to 0xFEFE and 0xA140 to 0xA7A0
+are U+E000 to U+E765, and 0x80 is the euro sign. Any other byte or pair the
+table does not map, and a lead byte with no trail byte, are one U+FFFD each
+(a lead byte followed by an ASCII byte that makes no character with it is
+U+FFFD, and the ASCII byte is read again), and `text.unmapped_glyphs`
+names the code page. Other code pages (437, 850, Johab, ...) are not
+decoded. The ligatures
 U+FB00 to U+FB06 (Mac Roman has two) are written as their letters.
 
 Destinations marked `\*` that this library does not know are skipped, as the
@@ -164,7 +172,7 @@ Besides the shared codes (`limit.exceeded`, `part.no_text`,
 | `input.external_reference` | warning | a linked object, an `INCLUDEPICTURE`, `INCLUDETEXT`, `INCLUDE`, `LINK` or `IMPORT` field, a remote `\*\template`; nothing was fetched |
 | `input.active_content` | warning | a `DDE` or `DDEAUTO` field, an ActiveX control (`\objocx`); nothing was run |
 | `text.tracked_changes` | info | the document has insertions (`\revised`) or deletions (`\deleted`) |
-| `text.unmapped_glyphs` | warning | bytes in a code page that is not decoded, bytes their code page leaves undefined, bytes above 0x7F in a Symbol font (`\fcharset2`) other than 0xB7, unpaired surrogates. One warning for the body: with more than one code page it gives the total, says what happened in each of the first eight (in the order of their numbers) and counts the rest. The first 64 code pages met are counted one by one; past them the rest are counted together, and the message says "at least" so many more |
+| `text.unmapped_glyphs` | warning | bytes in a code page that is not decoded, bytes above 0x9F (pairs, in a double-byte code page) their code page leaves undefined, bytes above 0x7F in a Symbol font (`\fcharset2`) other than 0xB7, unpaired surrogates. One warning for the body: with more than one code page it gives the total, says what happened in each of the first eight (in the order of their numbers) and counts the rest. The first 64 code pages met are counted one by one; past them the rest are counted together, and the message says "at least" so many more |
 | `image.unsupported_encoding` | warning | with `ImagesData`, a picture in a format whose bytes cannot be given as a file (device-dependent bitmap, OS/2 metafile, no format named) |
 | `input.trailing_data` | info | data follows the document's closing brace; the message gives how many bytes. Its text is in the stored part as `after_end`. On the document when there is no stored part to carry it |
 | `input.unread_content` | warning | content this version does not read: equations (`\mmath`); the message names it with the count |
@@ -261,7 +269,6 @@ read.
 |---|---|
 | `extract.go` | `Extractor`, `Extract`, `ExtractFile`, warning codes, limits |
 | `internal/token` | the tokenizer |
-| `internal/codepage` | code page tables and decoder |
 | `internal/htmlrtf` | de-encapsulation of HTML (`\fromhtml1`) |
 | `internal/reader` | groups, destinations and the blocks they become |
 | `cmd/gofastrtf` | the command |
@@ -283,5 +290,5 @@ this repository.
 
 ## Licence
 
-MIT. The code page tables are the content of the Unicode Consortium's
-mapping files; see [`NOTICE`](NOTICE).
+MIT. The code pages are decoded by go-fast-core's `charset`, whose tables
+and their sources are in go-fast-core's NOTICE; see [`NOTICE`](NOTICE).

@@ -14,7 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/AOShei/go-fast-core"
-	"github.com/AOShei/go-fast-rtf/internal/codepage"
+	"github.com/AOShei/go-fast-core/charset"
 	"github.com/AOShei/go-fast-rtf/internal/token"
 )
 
@@ -192,7 +192,7 @@ type reader struct {
 	endAt        int64
 	trailingData bool
 
-	dec      codepage.Decoder
+	dec      charset.PageDecoder
 	ucLeft   int32
 	hiSurr   rune
 	unmapped map[int]int // replacements by code page; see miss
@@ -636,7 +636,7 @@ func (r *reader) bin(t token.Token) {
 func (r *reader) put(c rune) {
 	if r.hiSurr != 0 {
 		r.hiSurr = 0
-		r.put1(codepage.Unmapped)
+		r.put1(unmapped)
 	}
 	r.put1(c)
 }
@@ -671,7 +671,7 @@ func (r *reader) unicode(v int32) {
 	switch {
 	case c >= 0xD800 && c < 0xDC00:
 		if r.hiSurr != 0 {
-			r.put1(codepage.Unmapped)
+			r.put1(unmapped)
 		}
 		r.hiSurr = c
 		return
@@ -682,11 +682,11 @@ func (r *reader) unicode(v int32) {
 			r.put1((hi-0xD800)<<10 | (c - 0xDC00) + 0x10000)
 			return
 		}
-		r.put1(codepage.Unmapped)
+		r.put1(unmapped)
 		r.miss(-1)
 		return
 	case c > 0x10FFFF:
-		c = codepage.Unmapped
+		c = unmapped
 	}
 	r.put(c)
 }
@@ -794,7 +794,7 @@ func (r *reader) finish() {
 const maxListed = 8
 
 // miss counts a U+FFFD given for text in code page cp: -1 for an unpaired
-// surrogate, codepage.Symbol for a Symbol font. The first maxCodePages
+// surrogate, charset.Symbol for a Symbol font. The first maxCodePages
 // code pages met are counted one by one, and the two negative values
 // always; replacements in the code pages met after them are counted
 // together, so that a file switching among many code pages takes no more
@@ -852,11 +852,11 @@ func unmappedMessage(cp, n int) string {
 	switch {
 	case cp == -1:
 		return fmt.Sprintf("%d unpaired surrogate code units in \\u escapes are U+FFFD", n)
-	case cp == codepage.Symbol:
+	case cp == charset.Symbol:
 		return fmt.Sprintf("%d characters in Symbol fonts are U+FFFD", n)
-	case codepage.DoubleByte(cp):
+	case doubleByte(cp):
 		return fmt.Sprintf("%d characters have no mapping in code page %d, or are a lead byte with no trail byte, and are U+FFFD", n, cp)
-	case !codepage.Known(cp):
+	case !known(cp):
 		return fmt.Sprintf("code page %d was not decoded: %d bytes are U+FFFD", cp, n)
 	}
 	return fmt.Sprintf("%d bytes have no character in code page %d and are U+FFFD", n, cp)
@@ -1040,4 +1040,21 @@ func controlsMessage(n int) string {
 		return "1 control character with no meaning as text was removed from the text"
 	}
 	return strconv.Itoa(n) + " control characters with no meaning as text were removed from the text"
+}
+
+// unmapped is the character of a byte or a pair of bytes that is not
+// decoded.
+const unmapped = 0xFFFD
+
+// known reports whether bytes in code page cp are decoded.
+func known(cp int) bool {
+	_, ok := charset.CodePage(cp)
+	return ok
+}
+
+// doubleByte reports whether cp is one of the double-byte code pages
+// decoded: 932, 936, 949 and 950.
+func doubleByte(cp int) bool {
+	enc, ok := charset.CodePage(cp)
+	return ok && (enc == charset.ShiftJIS || enc == charset.GBK || enc == charset.EUCKR || enc == charset.Big5)
 }

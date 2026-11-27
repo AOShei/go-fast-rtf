@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/AOShei/go-fast-core"
-	"github.com/AOShei/go-fast-rtf/internal/codepage"
+	"github.com/AOShei/go-fast-core/charset"
 	"github.com/AOShei/go-fast-rtf/internal/token"
 )
 
@@ -531,7 +531,7 @@ func (r *reader) fontWord(name string, v int32) {
 	case "fcharset":
 		f, ok := r.fonts[r.curFont]
 		if ok && f.cpg == 0 {
-			f.cp = codepage.ForCharset(int(v))
+			f.cp = charset.ForCharset(int(v))
 			r.fonts[r.curFont] = f
 		}
 	case "cpg":

@@ -15,7 +15,7 @@ go-fast-core v0.1.1 (schema 0.2).
 |---|---|
 | `extract.go`, `doc.go` | Public API: `Extractor`, `Extract`, `ExtractFile`, warning codes, stored kinds |
 | `internal/token` | Tokenizer: groups, control words/symbols, text, `\'hh`, bounded `\binN` |
-| `internal/codepage` | Code page tables and decoder: single-byte 874, 1250 to 1258 and 10000, UTF-8 (65001), double-byte 932, 936, 949 and 950 |
+| `internal/codepage` | Code page tables and decoder (moved to go-fast-core's `charset` in v0.3.0): single-byte 874, 1250 to 1258 and 10000, UTF-8 (65001), double-byte 932, 936, 949 and 950 |
 | `internal/htmlrtf` | De-encapsulation of HTML from `\fromhtml1` documents ([MS-OXRTFEX]) |
 | `internal/reader` | The group/destination state machine that builds the document |
 | `cmd/gofastrtf` | The command, printing JSON, Markdown or text |

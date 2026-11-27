@@ -76,5 +76,5 @@ jobs:
       - name: The library imports only go-fast-core
         run: |
           pkgs=$(go list ./... | grep -v '/cmd/')
-          extra=$(go list -deps -test -f '{{if not .Standard}}{{.ImportPath}}{{end}}' $pkgs | grep -v '^github.com/AOShei/go-fast-core$' | grep -vE '^github.com/AOShei/go-fast-rtf([/_. ]|$)' || true)
+          extra=$(go list -deps -test -f '{{if not .Standard}}{{.ImportPath}}{{end}}' $pkgs | grep -vE '^github.com/AOShei/go-fast-core(/|$)' | grep -vE '^github.com/AOShei/go-fast-rtf([/_. ]|$)' || true)
           if [ -n "$extra" ]; then echo "unexpected packages:"; echo "$extra"; exit 1; fi
